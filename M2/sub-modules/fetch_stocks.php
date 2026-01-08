@@ -1,27 +1,41 @@
 <?php
-header('Content-Type: application/json');
+session_start();
 include("../../main_connection.php");
 
-$db_name = "rest_m2_inventory"; // Updated to match your database name
+$db_name = "rest_m2_inventory";
 
 if (!isset($connections[$db_name])) {
-    die(json_encode(['status' => 'error', 'message' => "❌ Connection not found for $db_name"]));
+    die(json_encode(['status' => 'error', 'message' => "Connection not found"]));
 }
 
 $conn = $connections[$db_name];
 
-// Get all columns from the inventory_and_stock table
-$query = "SELECT item_id, item_name, category, quantity, critical_level, unit_price, expiry_date FROM inventory_and_stock ORDER BY item_name ASC";
-$result = mysqli_query($conn, $query);
+$sql = "SELECT item_id, item_name, category, quantity, critical_level, 
+               created_at, updated_at, unit_price, notes, request_status, 
+               expiry_date, last_restock_date, location, image_url
+        FROM inventory_and_stock 
+        ORDER BY created_at DESC";
+
+$result = $conn->query($sql);
+
+if (!$result) {
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'SQL Error: ' . $conn->error
+    ]);
+    exit();
+}
 
 $stocks = [];
-
-if ($result) {
-    while ($row = mysqli_fetch_assoc($result)) {
-        $stocks[] = $row;
-    }
-    echo json_encode(['status' => 'success', 'stocks' => $stocks]);
-} else {
-    echo json_encode(['status' => 'error', 'message' => 'Failed to fetch stocks: ' . mysqli_error($conn)]);
+while ($row = $result->fetch_assoc()) {
+    $stocks[] = $row;
 }
+
+echo json_encode([
+    'status' => 'success',
+    'stocks' => $stocks,
+    'total' => count($stocks)
+]);
+
+$conn->close();
 ?>

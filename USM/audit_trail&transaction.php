@@ -173,7 +173,6 @@ if ($result) {
                 <thead>
                   <tr class="bg-gray-50">
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Log ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modules</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
@@ -188,10 +187,7 @@ if ($result) {
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           #<?php echo htmlspecialchars($trail['a&t_id'] ?? ''); ?>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <?php echo htmlspecialchars($trail['dept_name'] ?? ''); ?>
-                          <div class="text-xs text-gray-400">ID: <?php echo htmlspecialchars($trail['dept_id'] ?? ''); ?></div>
-                        </td>
+                       
                         <td class="px-6 py-4 whitespace-nowrap">
                           <div class="flex items-center">
                             <div class="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">

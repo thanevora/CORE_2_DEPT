@@ -90,3 +90,51 @@
     .hover\:overflow-y-auto:hover {
         overflow-y: auto;
     }
+
+
+
+/* 🧠 SweetAlert Fix — ensures buttons are visible immediately */
+.swal2-styled {
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: #fff !important;
+  background-color: #3085d6 !important;
+  transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+}
+
+.swal2-styled:hover {
+  background-color: #2563eb !important; /* Tailwind's blue-600 */
+  transform: scale(1.03);
+}
+
+.swal2-cancel {
+  background-color: #e5e7eb !important; /* neutral-200 */
+  color: #111 !important;
+}
+.swal2-cancel:hover {
+  background-color: #d1d5db !important; /* neutral-300 */
+}
+
+/* Remove all SweetAlert hover effects */
+.swal2-confirm:hover,
+.swal2-cancel:hover,
+.swal2-deny:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    background-color: inherit !important;
+    filter: none !important;
+}
+
+/* Remove transitions */
+.swal2-confirm,
+.swal2-cancel,
+.swal2-deny {
+    transition: none !important;
+}
+
+/* Remove focus effects if desired */
+.swal2-confirm:focus,
+.swal2-cancel:focus,
+.swal2-deny:focus {
+    box-shadow: none !important;
+}

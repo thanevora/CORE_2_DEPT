@@ -1,45 +1,112 @@
 <?php
+session_start();
 include("../../main_connection.php");
-require_once '../../PHPMailer/PHPMailerAutoload.php';
 
 $db_name = "rest_m11_event"; // ✅ Event DB
 
 if (!isset($connections[$db_name])) {
-    die("❌ Connection not found for $db_name");
+    die(json_encode(['success' => false, 'message' => "❌ Connection not found for $db_name"]));
 }
 
 $conn = $connections[$db_name]; // ✅ DB connection
 
+header('Content-Type: application/json');
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     try {
         // --- Collect Event Inputs ---
-        $customer_name     = $_POST['customer_name'] ?? '';
-        $customer_email    = $_POST['customer_email'] ?? '';
-        $customer_phone    = $_POST['customer_phone'] ?? '';
-        $event_name        = $_POST['event_name'] ?? '';
-        $event_type        = $_POST['event_type'] ?? '';
-        $event_date        = $_POST['event_date'] ?? '';
-        $event_time        = $_POST['event_time'] ?? '';
-        $venue             = $_POST['venue'] ?? '';
+        $customer_name     = trim($_POST['customer_name'] ?? '');
+        $customer_email    = trim($_POST['customer_email'] ?? '');
+        $customer_phone    = trim($_POST['customer_phone'] ?? '');
+        $event_name        = trim($_POST['event_name'] ?? '');
+        $event_type        = trim($_POST['event_type'] ?? '');
+        $event_date        = trim($_POST['event_date'] ?? '');
+        $event_time        = trim($_POST['event_time'] ?? '');
+        $venue             = trim($_POST['venue'] ?? '');
         $num_guests        = (int) ($_POST['num_guests'] ?? 0);
-        $special_requests  = $_POST['special_requests'] ?? '';
-        $event_package     = $_POST['event_package'] ?? '';
-        $reservation_status = "Pending";
-        $payment_status     = "Pending";
+        $special_requests  = trim($_POST['special_requests'] ?? '');
+        $event_package     = trim($_POST['event_package'] ?? '');
+        $reservation_status = "Under review";
+        $payment_status     = "Unpaid";
+        $MOP               = trim($_POST['MOP'] ?? 'Cash');
+        $image_url         = '';
+
+        // --- Handle Image Upload ---
+        if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = '../../M6/images/';
+            
+            // Create directory if it doesn't exist
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            $fileName = uniqid() . '_' . basename($_FILES['valid_id']['name']);
+            $targetPath = $uploadDir . $fileName;
+            
+            // Validate image file
+            $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            $fileType = mime_content_type($_FILES['valid_id']['tmp_name']);
+            
+            if (!in_array($fileType, $allowedTypes)) {
+                throw new Exception("Invalid file type. Only JPG, PNG, and GIF are allowed.");
+            }
+            
+            // Move uploaded file
+            if (move_uploaded_file($_FILES['valid_id']['tmp_name'], $targetPath)) {
+                $image_url = $fileName;
+            } else {
+                throw new Exception("Failed to upload image.");
+            }
+        }
 
         // --- Validation ---
-        if (empty($customer_name) || empty($customer_email) || empty($event_name) || empty($event_date) || empty($event_time)) {
-            throw new Exception("⚠️ Required fields missing.");
+        $errors = [];
+        
+        if (empty($customer_name)) $errors[] = "Customer name is required";
+        if (empty($customer_email)) $errors[] = "Customer email is required";
+        if (empty($customer_phone)) $errors[] = "Customer phone is required";
+        if (empty($event_name)) $errors[] = "Event name is required";
+        if (empty($event_type)) $errors[] = "Event type is required";
+        if (empty($event_date)) $errors[] = "Event date is required";
+        if (empty($event_time)) $errors[] = "Event time is required";
+        if (empty($venue)) $errors[] = "Venue is required";
+        if ($num_guests < 1) $errors[] = "Number of guests must be at least 1";
+        if (empty($event_package)) $errors[] = "Event package is required";
+        
+        // Validate email format
+        if (!empty($customer_email) && !filter_var($customer_email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = "Invalid email format";
+        }
+        
+        // Validate date is not in the past
+        if (!empty($event_date)) {
+            $currentDate = date('Y-m-d');
+            if ($event_date < $currentDate) {
+                $errors[] = "Event date cannot be in the past";
+            }
+        }
+        
+        if (!empty($errors)) {
+            throw new Exception(implode(". ", $errors));
         }
 
         // --- Financials ---
         $total_amount = isset($_POST['calculated_total']) ? floatval($_POST['calculated_total']) : 0;
+        
+        // Validate total amount
+        if ($total_amount <= 0) {
+            throw new Exception("Invalid total amount calculated. Please check your selections.");
+        }
+        
         $amount_paid = $total_amount * 0.20; // ✅ Auto 20% downpayment
 
         // --- Insert into DB ---
         $sql = "INSERT INTO event_reservations 
-            (customer_name, customer_email, customer_phone, event_name, event_type, event_date, event_time, venue, num_guests, special_requests, reservation_status, payment_status, total_amount, amount_paid, event_package) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                (customer_name, customer_email, customer_phone, event_name, 
+                 event_type, event_date, event_time, venue, num_guests, 
+                 special_requests, reservation_status, payment_status, 
+                 total_amount, amount_paid, event_package, created_at, MOP, image_url) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)";
 
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
@@ -47,12 +114,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         $stmt->bind_param(
-            "ssssssssisssdds",
+            "ssssssssisssddsss",
             $customer_name, $customer_email, $customer_phone,
             $event_name, $event_type, $event_date, $event_time,
             $venue, $num_guests, $special_requests,
             $reservation_status, $payment_status,
-            $total_amount, $amount_paid, $event_package
+            $total_amount, $amount_paid, $event_package,
+            $MOP, $image_url
         );
 
         if (!$stmt->execute()) {
@@ -62,67 +130,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $reservation_id = $stmt->insert_id;
         $stmt->close();
 
-        // --- Email Confirmation ---
-        $subject = "Event Reservation Confirmation - Soliera Restaurant";
-        $message = "
-            <div style='font-family: Arial, sans-serif; color:#333; line-height:1.6;'>
-                <h2 style='color:#8b0000;'>Event Reservation Confirmation</h2>
-                <p>Dear <strong>$customer_name</strong>,</p>
-                <p>Thank you for booking your event with <em>Soliera Restaurant</em>. 
-                Your reservation has been received and is currently <strong style='color:orange;'>pending confirmation</strong>.</p>
-                
-                <table style='width:100%; border-collapse:collapse; margin:15px 0;'>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Event Name:</strong></td><td style='padding:8px; border:1px solid #ddd;'>$event_name</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Event Type:</strong></td><td style='padding:8px; border:1px solid #ddd;'>$event_type</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Venue:</strong></td><td style='padding:8px; border:1px solid #ddd;'>$venue</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Package:</strong></td><td style='padding:8px; border:1px solid #ddd;'>$event_package</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Guests:</strong></td><td style='padding:8px; border:1px solid #ddd;'>$num_guests</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Date:</strong></td><td style='padding:8px; border:1px solid #ddd;'>$event_date</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Time:</strong></td><td style='padding:8px; border:1px solid #ddd;'>$event_time</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Total Amount:</strong></td><td style='padding:8px; border:1px solid #ddd;'>₱" . number_format($total_amount, 2) . "</td></tr>
-                    <tr><td style='padding:8px; border:1px solid #ddd;'><strong>Downpayment (20%):</strong></td><td style='padding:8px; border:1px solid #ddd;'>₱" . number_format($amount_paid, 2) . "</td></tr>
-                </table>
-
-                <p><strong>Special Requests:</strong> " . (!empty($special_requests) ? $special_requests : "None") . "</p>
-                <p>Our event coordinator will contact you within <strong>24 hours</strong> to finalize details.</p>
-
-                <p style='font-size:12px; color:#777;'>
-                    Soliera Restaurant Events Team<br>
-                    📞 +63-900-123-4567<br>
-                    📧 events@soliera.com<br>
-                    <em>This is an automated message. Please do not reply directly to this email.</em>
-                </p>
-            </div>
-        ";
-
-        $mail = new PHPMailer(true);
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'VehicleReservationManagement@gmail.com'; // ✅ Gmail
-        $mail->Password   = 'fzja ezgo ojdu fobc'; // ✅ App Password
-        $mail->SMTPSecure = 'tls';
-        $mail->Port       = 587;
-
-        $mail->setFrom('Soliera_Hotel&Restaurant@gmail.com', 'Soliera Restaurant Events');
-        $mail->addAddress($customer_email);
-        $mail->addReplyTo('events@soliera.com', 'Events Team');
-
-        $mail->isHTML(true);
-        $mail->Subject = $subject;
-        $mail->Body    = $message;
-        $mail->send();
-
-        // ✅ Redirect success
-        header("Location: ../main_reservation.php?type=event&id=" . $reservation_id);
-        exit();
+        echo json_encode([
+            'success' => true,
+            'message' => 'Reservation created successfully!',
+            'reservation_id' => $reservation_id
+        ]);
 
     } catch (Exception $e) {
         error_log("❌ Event reservation error: " . $e->getMessage());
-        header("Location: reservation_error.php?error=" . urlencode($e->getMessage()));
-        exit();
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
     }
 } else {
-    header("Location: index.php");
-    exit();
+    echo json_encode([
+        'success' => false,
+        'message' => 'Invalid request method'
+    ]);
 }
+?>
