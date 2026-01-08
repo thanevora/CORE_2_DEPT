@@ -1,0 +1,13 @@
+/node_modules/
+/vendor/
+/uploads/
+/storage/
+/.env
+*.log
+*.sql
+*.zip
+*.rar
+*.mp4
+*.jpg
+*.png
+*.webp
