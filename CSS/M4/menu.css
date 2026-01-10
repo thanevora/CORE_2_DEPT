@@ -1,0 +1,77 @@
+.menu-item-card {
+            transition: all 0.3s ease;
+        }
+        
+        .menu-item-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .order-item {
+            transition: all 0.2s ease;
+        }
+        
+        .order-item:hover {
+            background-color: #f8fafc;
+        }
+        
+        .category-tab {
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .category-tab.active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        
+        .floating-cart {
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 1rem;
+        }
+        
+        .table-card {
+            transition: all 0.3s ease;
+        }
+        
+        .table-card.selected {
+            border: 2px solid #3b82f6;
+            background-color: #f0f7ff;
+        }
+        
+        .table-card.occupied {
+            background-color: #fee2e2;
+        }
+        
+        .pagination .active {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .quantity-btn {
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background-color: #f1f5f9;
+            cursor: pointer;
+        }
+        
+        .quantity-input {
+            width: 3rem;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.25rem;
+            padding: 0.25rem;
+        }
