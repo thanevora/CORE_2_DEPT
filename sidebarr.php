@@ -61,10 +61,14 @@ $base_url = '/SOLIERA_RESTAURANT'; // Correct full URL
                 <!-- Dropdown Menu -->
                 <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
                     <div class="py-2 space-y-1">
+<<<<<<< HEAD
                          <a href="<?php echo $base_url; ?>/M1/calendar.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
                             <i data-lucide="calendar" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
                             <span>Calendar View</span>
                         </a>
+=======
+                        
+>>>>>>> 9114735d876c8a85ac14fa0b8355d9d6b26960fa
                         <!-- Tables Management -->
                         <a href="<?php echo $base_url; ?>/M1/sub-modules/Table.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
                             <i data-lucide="table-properties" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>

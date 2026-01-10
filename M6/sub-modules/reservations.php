@@ -427,7 +427,11 @@ function deleteReservation($conn) {
 // Helper function to determine if a reservation is editable
 function isReservationEditable($status) {
     // Reservations are editable only when status is: Pending or For Compliance
+<<<<<<< HEAD
     $editableStatuses = ['Under review', 'For Compliance'];
+=======
+    $editableStatuses = ['Pending', 'For Compliance'];
+>>>>>>> 9114735d876c8a85ac14fa0b8355d9d6b26960fa
     return in_array($status, $editableStatuses);
 }
 ?>
