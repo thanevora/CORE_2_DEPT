@@ -21,3 +21,4 @@ if ($query->execute()) {
 } else {
     echo json_encode(["success" => false, "msg" => "DB error"]);
 }
+?>

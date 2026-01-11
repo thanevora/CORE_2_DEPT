@@ -29,7 +29,7 @@ $base_url = '/SOLIERA_RESTAURANT'; // Correct full URL
             <div class="px-4 py-2 mt-2">
                 <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider sidebar-text">Analytics & Reporting</p>
             </div>
-            <a href="<?php echo $base_url; ?>Analytics/Analytics_metabase.php" class="block">
+            <a href="<?php echo $base_url; ?>/Analytics/Analytics_metabase.php" class="block">
                 <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                     <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                         <i data-lucide="bar-chart-2" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -61,18 +61,9 @@ $base_url = '/SOLIERA_RESTAURANT'; // Correct full URL
                 <!-- Dropdown Menu -->
                 <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
                     <div class="py-2 space-y-1">
-<<<<<<< HEAD
-                         <a href="<?php echo $base_url; ?>/M1/calendar.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                        <a href="<?php echo $base_url; ?>/M1/calendar.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
                             <i data-lucide="calendar" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Calendar View</span>
-                        </a>
-=======
-                        
->>>>>>> 9114735d876c8a85ac14fa0b8355d9d6b26960fa
-                        <!-- Tables Management -->
-                        <a href="<?php echo $base_url; ?>/M1/sub-modules/Table.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="table-properties" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span class="sidebar-text">Tables</span>
+                            <span class="sidebar-text">Calendar View</span>
                         </a>
                     </div>
                 </div>
@@ -98,14 +89,43 @@ $base_url = '/SOLIERA_RESTAURANT'; // Correct full URL
             </div>
             
             <?php if ($is_supervisor || in_array('turnover', $allowed_modules)): ?>
-            <a href="<?php echo $base_url; ?>/M8/turnover_main.php" class="block">
-                <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                    <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                        <i data-lucide="rotate-cw" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+            <!-- Turnover & Wait Time Dropdown -->
+            <div class="menu-dropdown">
+                <button type="button" class="dropdown-toggle flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                    <div class="flex items-center">
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="rotate-cw" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Turnover & Wait Time</span>
                     </div>
-                    <span class="ml-3 sidebar-text">Turnover & Wait Time</span>
+                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-icon dropdown-arrow"></i>
+                </button>
+                
+                <!-- Dropdown Menu -->
+                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
+                    <div class="py-2 space-y-1">
+                        <!-- Main Dashboard -->
+                        <a href="<?php echo $base_url; ?>/M8/turnover_main.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                            <i data-lucide="layout-dashboard" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span class="sidebar-text">Dashboard</span>
+                        </a>
+                        
+                        <!-- Tables Management -->
+                        <a href="<?php echo $base_url; ?>/M8/Table.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                            <i data-lucide="table-properties" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span class="sidebar-text">Tables</span>
+                        </a>
+                        
+                        <!-- Add more turnover items here as needed -->
+                        <!-- Example:
+                        <a href="<?php echo $base_url; ?>/M8/wait_time.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                            <i data-lucide="clock" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span class="sidebar-text">Wait Time Analytics</span>
+                        </a>
+                        -->
+                    </div>
                 </div>
-            </a>
+            </div>
             <?php endif; ?>
             
             <?php if ($is_supervisor || in_array('feedback', $allowed_modules)): ?>
@@ -257,40 +277,68 @@ $base_url = '/SOLIERA_RESTAURANT'; // Correct full URL
             </a>
             <?php endif; ?>
             
-            <?php if ($is_supervisor || in_array('user_management', $allowed_modules)): ?>
+            <?php if ($is_supervisor || in_array('USM', $allowed_modules)): ?>
             <!-- User Management Dropdown -->
-            <div class="menu-dropdown">
-                <button type="button" class="dropdown-toggle flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                    <div class="flex items-center">
-                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">User Management</span>
-                    </div>
-                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-icon dropdown-arrow"></i>
-                </button>
-                
-                <!-- Dropdown Menu -->
-                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
-                    <div class="py-2 space-y-1">
-                        <a href="<?php echo $base_url; ?>/USM/department_accounts.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="user-cog" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span class="sidebar-text">Department Accounts</span>
-                        </a>
-                        
-                        <!-- ADDED: Login Logs -->
-                        <a href="<?php echo $base_url; ?>/USM/department_logs.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="key" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span class="sidebar-text">Login Logs</span>
-                        </a>
-                       
-                        <a href="<?php echo $base_url; ?>/USM/audit_trail&transaction.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="history" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span class="sidebar-text">Audit Trail & Transaction</span>
-                        </a>
-                    </div>
+<div class="menu-dropdown">
+    <button type="button" class="dropdown-toggle flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+        <div class="flex items-center">
+            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+            </div>
+            <span class="ml-3 sidebar-text">User Management</span>
+        </div>
+        <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-icon dropdown-arrow"></i>
+    </button>
+    
+    <!-- Dropdown Menu -->
+    <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
+        <div class="py-2 space-y-1">
+            <!-- Profile Management Section -->
+            <div class="px-4 py-2">
+                <p class="text-xs font-semibold uppercase tracking-wider text-[#F7B32B] mb-2 flex items-center gap-2">
+                    <i data-lucide="user-circle" class="w-3 h-3"></i>
+                    Profile Management
+                </p>
+                <div class="space-y-1 ml-4">
+                    
+                    <a href="<?php echo $base_url; ?>/USM/change_password.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item">
+                        <i data-lucide="lock" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                        <span class="sidebar-text">Change Password</span>
+                    </a>
+                    <a href="<?php echo $base_url; ?>/USM/profile.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item">
+                        <i data-lucide="settings" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                        <span class="sidebar-text">Profile Settings</span>
+                    </a>
                 </div>
             </div>
+
+            <!-- System Management Section -->
+            <div class="px-4 py-2">
+                <p class="text-xs font-semibold uppercase tracking-wider text-[#F7B32B] mb-2 flex items-center gap-2">
+                    <i data-lucide="shield" class="w-3 h-3"></i>
+                    Sub-user Management
+                </p>
+                <div class="space-y-1 ml-4">
+                    <a href="<?php echo $base_url; ?>/USM/department_accounts.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item">
+                        <i data-lucide="user-cog" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                        <span class="sidebar-text">Department Accounts</span>
+                    </a>
+                    
+                    <!-- Login Logs -->
+                    <a href="<?php echo $base_url; ?>/USM/department_logs.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item">
+                        <i data-lucide="key" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                        <span class="sidebar-text">Login Logs</span>
+                    </a>
+                   
+                    <a href="<?php echo $base_url; ?>/USM/audit_trail&transaction.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item">
+                        <i data-lucide="history" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                        <span class="sidebar-text">Audit Trail & Transaction</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
             <?php endif; ?>
             <?php endif; ?>
 

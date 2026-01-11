@@ -33,3 +33,4 @@ $pos_result = $pos_query->get_result()->fetch_assoc();
 $order = array_merge($pos_result ?? [], $kot_result ?? []);
 
 echo json_encode(["success" => true, "order" => $order]);
+?>

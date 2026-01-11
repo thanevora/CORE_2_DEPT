@@ -190,6 +190,23 @@ $categories_json = json_encode($categories);
             margin: 0 auto;
             padding: 20px;
         }
+        /* Amount input styling */
+        .amount-input {
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s;
+        }
+        .amount-input:focus {
+            border-color: #F7B32B;
+            box-shadow: 0 0 0 3px rgba(247, 179, 43, 0.1);
+        }
+        .amount-input.valid {
+            border-color: #10B981;
+            background-color: #f0fdf4;
+        }
+        .amount-input.invalid {
+            border-color: #EF4444;
+            background-color: #fef2f2;
+        }
     </style>
 </head>
 <body class="bg-base-100 min-h-screen bg-white">
@@ -345,6 +362,36 @@ $categories_json = json_encode($categories);
                             </div>
                         </div>
                         
+                        <!-- Customer Payment Amount -->
+                        <div class="mt-6 border-t border-gray-200 pt-4">
+                            <h3 class="text-lg font-medium text-gray-700 mb-2">Customer Payment</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Amount Received</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <span class="text-gray-500 sm:text-sm">₱</span>
+                                        </div>
+                                        <input type="number" 
+                                               id="amountReceived" 
+                                               min="0" 
+                                               step="0.01"
+                                               class="amount-input pl-10 bg-white w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F7B32B]"
+                                               placeholder="0.00">
+                                    </div>
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded-md">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-700 font-medium">Change:</span>
+                                        <span id="changeAmount" class="text-lg font-bold text-green-600">₱0.00</span>
+                                    </div>
+                                    <div id="changeStatus" class="text-xs text-gray-500 mt-1">
+                                        Enter amount to calculate change
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <!-- Payment Method -->
                         <div class="mt-6">
                             <h3 class="text-lg font-medium text-gray-700 mb-2">Payment Method</h3>
@@ -395,74 +442,214 @@ $categories_json = json_encode($categories);
   </div>
 
     <!-- Table Selection Modal (Full Screen) -->
-    <div id="tableModal" class="fullscreen-modal hidden">
-        <div class="min-h-screen bg-gray-50">
-            <!-- Modal Header -->
-            <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                            <i data-lucide="table" class="w-8 h-8 text-[#F7B32B]"></i>
-                            Select Table
-                        </h2>
-                        <p class="text-gray-600 mt-1">Choose a table for your order. Available tables are highlighted.</p>
+<div id="tableModal" class="fullscreen-modal hidden">
+    <div class="min-h-screen bg-gray-50">
+        <!-- Modal Header -->
+        <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                        <i data-lucide="table" class="w-8 h-8 text-[#F7B32B]"></i>
+                        Select Table
+                    </h2>
+                    <p class="text-gray-600 mt-1">Choose a table for your order. Available tables are highlighted.</p>
+                </div>
+                <button id="closeTableModal" class="p-2 rounded-lg hover:bg-gray-100 transition duration-200">
+                    <i data-lucide="x" class="w-6 h-6 text-gray-600"></i>
+                </button>
+            </div>
+            
+            <!-- Search and Filter Controls -->
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Search Bar -->
+                <div class="md:col-span-2">
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"></i>
+                        <input type="text" 
+                               id="tableSearchInput" 
+                               placeholder="Search tables by name, capacity, or location..." 
+                               class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] focus:border-transparent bg-white">
                     </div>
-                    <button id="closeTableModal" class="p-2 rounded-lg hover:bg-gray-100 transition duration-200">
-                        <i data-lucide="x" class="w-6 h-6 text-gray-600"></i>
-                    </button>
                 </div>
                 
-                <!-- Status Legend -->
-                <div class="flex flex-wrap gap-3 mt-4">
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span class="text-sm text-gray-600">Available</span>
+                <!-- Status Filter -->
+                <div class="relative">
+                    <select id="tableStatusFilter" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white">
+                        <option value="all">All Status</option>
+                        <option value="available">Available</option>
+                        <option value="occupied">Occupied</option>
+                        <option value="reserved">Reserved</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="hidden">Hidden</option>
+                    </select>
+                    <i data-lucide="chevron-down" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none"></i>
+                </div>
+                
+                <!-- Category Filter -->
+                <div class="relative">
+                    <select id="tableCategoryFilter" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white">
+                        <option value="all">All Categories</option>
+                        <option value="standard">Standard</option>
+                        <option value="premium">Premium</option>
+                        <option value="vip">VIP</option>
+                        <option value="outdoor">Outdoor</option>
+                        <option value="private">Private</option>
+                    </select>
+                    <i data-lucide="filter" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none"></i>
+                </div>
+            </div>
+            
+            <!-- Active Filters -->
+            <div id="tableActiveFilters" class="flex flex-wrap gap-2 mt-3 hidden">
+                <!-- Active filters will appear here -->
+            </div>
+            
+            <!-- Status Legend -->
+            <div class="flex flex-wrap gap-3 mt-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span class="text-sm text-gray-600">Available</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span class="text-sm text-gray-600">Reserved</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span class="text-sm text-gray-600">Occupied</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <span class="text-sm text-gray-600">Maintenance</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-gray-500"></div>
+                    <span class="text-sm text-gray-600">Hidden</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="p-6">
+            <!-- Table Display Controls -->
+            <div class="flex justify-between items-center mb-4">
+                <div class="text-sm text-gray-600">
+                    Showing <span id="tableShowingStart">0</span>-<span id="tableShowingEnd">0</span> of <span id="tableTotalItems">0</span> tables
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- View Toggle -->
+                    <div class="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                        <button id="tableViewToggle" class="p-2 rounded-lg bg-white text-gray-700 shadow-sm hover:bg-gray-50 transition duration-200">
+                            <i data-lucide="grid" class="w-5 h-5"></i>
+                        </button>
+                        <button id="tableListViewBtn" class="p-2 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition duration-200">
+                            <i data-lucide="list" class="w-5 h-5"></i>
+                        </button>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span class="text-sm text-gray-600">Reserved</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
-                        <span class="text-sm text-gray-600">Occupied</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
-                        <span class="text-sm text-gray-600">Maintenance</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-gray-500"></div>
-                        <span class="text-sm text-gray-600">Hidden</span>
+                    
+                    <!-- Sort Options -->
+                    <div class="relative">
+                        <select id="tableSort" class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white text-sm">
+                            <option value="name-asc">Sort by: Name (A-Z)</option>
+                            <option value="name-desc">Sort by: Name (Z-A)</option>
+                            <option value="capacity-asc">Sort by: Capacity (Low-High)</option>
+                            <option value="capacity-desc">Sort by: Capacity (High-Low)</option>
+                            <option value="status-asc">Sort by: Status</option>
+                        </select>
+                        <i data-lucide="arrow-up-down" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"></i>
                     </div>
                 </div>
             </div>
-
-            <!-- Table Grid -->
-            <div class="table-grid p-6" id="tableGrid">
+            
+            <!-- Tables Grid View -->
+            <div id="tableGridView" class="table-grid">
                 <!-- Tables will be populated here -->
             </div>
+            
+            <!-- Tables List View (Hidden by default) -->
+            <div id="tableListView" class="hidden">
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Table
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Category
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Capacity
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Location
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableListBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Table rows will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="flex flex-col sm:flex-row items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                <div class="text-sm text-gray-600 mb-2 sm:mb-0">
+                    Page <span id="tableCurrentPage">1</span> of <span id="tableTotalPages">1</span>
+                </div>
+                <nav class="inline-flex rounded-md shadow">
+                    <button id="tablePrevPage" class="py-2 px-4 border border-gray-300 bg-white rounded-l-md text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        Previous
+                    </button>
+                    <div id="tablePageNumbers" class="flex border-t border-b border-gray-300">
+                        <!-- Page numbers will be populated here -->
+                    </div>
+                    <button id="tableNextPage" class="py-2 px-4 border border-gray-300 bg-white rounded-r-md text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Next
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </nav>
+                <div class="flex items-center gap-2 mt-2 sm:mt-0">
+                    <span class="text-sm text-gray-600">Items per page:</span>
+                    <select id="tableItemsPerPage" class="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#F7B32B] bg-white">
+                        <option value="12">12</option>
+                        <option value="24">24</option>
+                        <option value="48">48</option>
+                        <option value="96">96</option>
+                    </select>
+                </div>
+            </div>
+        </div>
 
-            <!-- Action Buttons -->
-            <div class="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 shadow-lg">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <span class="text-gray-600">Selected:</span>
-                        <span id="selectedTableInfo" class="ml-2 font-medium text-gray-800">No table selected</span>
-                    </div>
-                    <div class="flex gap-3">
-                        <button id="cancelTableBtn" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200 flex items-center gap-2 font-medium">
-                            <i data-lucide="x" class="w-5 h-5"></i>
-                            Cancel
-                        </button>
-                        <button id="confirmTableBtn" class="px-5 py-2.5 bg-[#F7B32B] text-white rounded-lg hover:bg-[#e6a117] transition duration-200 flex items-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i data-lucide="check" class="w-5 h-5"></i>
-                            Confirm Selection
-                        </button>
-                    </div>
+        <!-- Action Buttons -->
+        <div class="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 shadow-lg">
+            <div class="flex justify-between items-center">
+                <div>
+                    <span class="text-gray-600">Selected:</span>
+                    <span id="selectedTableInfo" class="ml-2 font-medium text-gray-800">No table selected</span>
+                </div>
+                <div class="flex gap-3">
+                    <button id="cancelTableBtn" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200 flex items-center gap-2 font-medium">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                        Cancel
+                    </button>
+                    <button id="confirmTableBtn" class="px-5 py-2.5 bg-[#F7B32B] text-white rounded-lg hover:bg-[#e6a117] transition duration-200 flex items-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i data-lucide="check" class="w-5 h-5"></i>
+                        Confirm Selection
+                    </button>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
     <!-- Receipt Modal -->
     <div id="receiptModal" class="receipt-modal hidden">
@@ -514,7 +701,6 @@ $categories_json = json_encode($categories);
             </div>
         </div>
     </div>
-
 <script>
     // Initialize Lucide icons
     lucide.createIcons();
@@ -542,12 +728,24 @@ $categories_json = json_encode($categories);
     const itemsPerPage = 15;
     let orderItems = [];
     let selectedPaymentMethod = null;
+    let amountReceived = 0;
+    let changeAmount = 0;
     
     // Filter state
     let currentCategory = 'all';
     let currentSearch = '';
     let currentPriceSort = 'default';
     let filteredItems = [];
+
+    // Table Modal State Variables
+    let tableCurrentPage = 1;
+    let tableItemsPerPage = 12;
+    let tableCurrentSearch = '';
+    let tableCurrentStatus = 'all';
+    let tableCurrentCategory = 'all';
+    let tableCurrentSort = 'name-asc';
+    let filteredTables = [];
+    let isGridView = true;
 
     // DOM elements
     const menuItemsContainer = document.getElementById('menuItems');
@@ -562,7 +760,6 @@ $categories_json = json_encode($categories);
     const confirmTableBtn = document.getElementById('confirmTableBtn');
     const selectedTableText = document.getElementById('selectedTableText');
     const tableStatusBadge = document.getElementById('tableStatusBadge');
-    const tableGrid = document.getElementById('tableGrid');
     const selectedTableInfo = document.getElementById('selectedTableInfo');
     const subtotalElement = document.getElementById('subtotal');
     const serviceChargeElement = document.getElementById('serviceCharge');
@@ -582,6 +779,9 @@ $categories_json = json_encode($categories);
     const closeReceiptModal = document.getElementById('closeReceiptModal');
     const printReceiptBtn = document.getElementById('printReceiptBtn');
     const receiptContent = document.getElementById('receiptContent');
+    const amountReceivedInput = document.getElementById('amountReceived');
+    const changeAmountElement = document.getElementById('changeAmount');
+    const changeStatusElement = document.getElementById('changeStatus');
     
     // Filter elements
     const searchInput = document.getElementById('searchInput');
@@ -592,6 +792,70 @@ $categories_json = json_encode($categories);
     const showingEndElement = document.getElementById('showingEnd');
     const totalItemsElement = document.getElementById('totalItems');
     const itemCountElement = document.getElementById('itemCount');
+
+    // Table Modal DOM Elements
+    const tableGrid = document.getElementById('tableGridView');
+    const tableListBody = document.getElementById('tableListBody');
+    const tableSearchInput = document.getElementById('tableSearchInput');
+    const tableStatusFilter = document.getElementById('tableStatusFilter');
+    const tableCategoryFilter = document.getElementById('tableCategoryFilter');
+    const tableActiveFilters = document.getElementById('tableActiveFilters');
+    const tableGridViewElement = document.getElementById('tableGridView');
+    const tableListViewElement = document.getElementById('tableListView');
+    const tableViewToggle = document.getElementById('tableViewToggle');
+    const tableListViewBtn = document.getElementById('tableListView');
+    const tableSort = document.getElementById('tableSort');
+    const tablePrevPage = document.getElementById('tablePrevPage');
+    const tableNextPage = document.getElementById('tableNextPage');
+    const tablePageNumbers = document.getElementById('tablePageNumbers');
+    const tableItemsPerPageSelect = document.getElementById('tableItemsPerPage');
+    const tableCurrentPageElement = document.getElementById('tableCurrentPage');
+    const tableTotalPagesElement = document.getElementById('tableTotalPages');
+    const tableShowingStartElement = document.getElementById('tableShowingStart');
+    const tableShowingEndElement = document.getElementById('tableShowingEnd');
+    const tableTotalItemsElement = document.getElementById('tableTotalItems');
+
+    // ============================================
+    // AMOUNT & CHANGE CALCULATION FUNCTIONS
+    // ============================================
+    function calculateChange() {
+        const totalBillText = totalBillElement.textContent.replace('₱', '').replace(/,/g, '');
+        const totalBill = parseFloat(totalBillText) || 0;
+        
+        // Get amount received value
+        amountReceived = parseFloat(amountReceivedInput.value) || 0;
+        
+        // Calculate change
+        changeAmount = amountReceived - totalBill;
+        
+        // Update UI
+        if (amountReceived > 0) {
+            changeAmountElement.textContent = `₱${changeAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+            
+            // Style based on change status
+            if (changeAmount >= 0) {
+                changeAmountElement.classList.remove('text-red-600');
+                changeAmountElement.classList.add('text-green-600');
+                changeStatusElement.textContent = 'Sufficient payment';
+                amountReceivedInput.classList.remove('invalid');
+                amountReceivedInput.classList.add('valid');
+            } else {
+                changeAmountElement.classList.remove('text-green-600');
+                changeAmountElement.classList.add('text-red-600');
+                changeStatusElement.textContent = `Insufficient payment. Need ₱${(-changeAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} more`;
+                amountReceivedInput.classList.remove('valid');
+                amountReceivedInput.classList.add('invalid');
+            }
+        } else {
+            changeAmountElement.textContent = '₱0.00';
+            changeAmountElement.classList.remove('text-green-600', 'text-red-600');
+            changeStatusElement.textContent = 'Enter amount to calculate change';
+            amountReceivedInput.classList.remove('valid', 'invalid');
+            changeAmount = 0;
+        }
+        
+        return changeAmount;
+    }
 
     // ============================================
     // AUTO-DOWNLOAD RECEIPT FUNCTION
@@ -756,8 +1020,6 @@ $categories_json = json_encode($categories);
         // Table selection
         tableSelectBtn.addEventListener('click', () => {
             renderTablesInModal();
-            tableModal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
         });
 
         closeTableModal.addEventListener('click', () => {
@@ -804,7 +1066,25 @@ $categories_json = json_encode($categories);
                 });
                 button.classList.add('border-[#F7B32B]', 'bg-yellow-50');
                 selectedPaymentMethod = button.dataset.mop;
+                
+                // Auto-select amount for cash payment
+                if (selectedPaymentMethod === 'cash') {
+                    amountReceivedInput.focus();
+                }
             });
+        });
+
+        // Amount received input
+        amountReceivedInput.addEventListener('input', () => {
+            calculateChange();
+        });
+
+        amountReceivedInput.addEventListener('blur', () => {
+            const value = parseFloat(amountReceivedInput.value);
+            if (value >= 0) {
+                amountReceivedInput.value = value.toFixed(2);
+            }
+            calculateChange();
         });
 
         // Checkout button
@@ -830,6 +1110,87 @@ $categories_json = json_encode($categories);
 
         printReceiptBtn.addEventListener('click', () => {
             window.print();
+        });
+
+        // ============================================
+        // TABLE MODAL EVENT LISTENERS
+        // ============================================
+        // Table search input
+        tableSearchInput.addEventListener('input', (e) => {
+            tableCurrentSearch = e.target.value.toLowerCase();
+            tableCurrentPage = 1;
+            applyTableFilters();
+        });
+        
+        // Table status filter
+        tableStatusFilter.addEventListener('change', (e) => {
+            tableCurrentStatus = e.target.value;
+            tableCurrentPage = 1;
+            applyTableFilters();
+            updateTableActiveFilters();
+        });
+        
+        // Table category filter
+        tableCategoryFilter.addEventListener('change', (e) => {
+            tableCurrentCategory = e.target.value;
+            tableCurrentPage = 1;
+            applyTableFilters();
+            updateTableActiveFilters();
+        });
+        
+        // Table sort options
+        tableSort.addEventListener('change', (e) => {
+            tableCurrentSort = e.target.value;
+            tableCurrentPage = 1;
+            applyTableFilters();
+        });
+        
+        // Table view toggle
+        tableViewToggle.addEventListener('click', () => {
+            if (!isGridView) {
+                isGridView = true;
+                tableGridViewElement.classList.remove('hidden');
+                tableListViewElement.classList.add('hidden');
+                tableViewToggle.classList.add('bg-gray-100', 'text-gray-600');
+                tableViewToggle.classList.remove('text-gray-400');
+                tableListViewBtn.classList.remove('bg-gray-100', 'text-gray-600');
+                tableListViewBtn.classList.add('text-gray-400');
+            }
+        });
+        
+        tableListViewBtn.addEventListener('click', () => {
+            if (isGridView) {
+                isGridView = false;
+                tableGridViewElement.classList.add('hidden');
+                tableListViewElement.classList.remove('hidden');
+                tableListViewBtn.classList.add('bg-gray-100', 'text-gray-600');
+                tableListViewBtn.classList.remove('text-gray-400');
+                tableViewToggle.classList.remove('bg-gray-100', 'text-gray-600');
+                tableViewToggle.classList.add('text-gray-400');
+            }
+        });
+        
+        // Table pagination
+        tablePrevPage.addEventListener('click', () => {
+            if (tableCurrentPage > 1) {
+                tableCurrentPage--;
+                renderTables();
+            }
+        });
+        
+        tableNextPage.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredTables.length / tableItemsPerPage);
+            if (tableCurrentPage < totalPages) {
+                tableCurrentPage++;
+                renderTables();
+            }
+        });
+        
+        // Table items per page
+        tableItemsPerPageSelect.addEventListener('change', (e) => {
+            tableItemsPerPage = parseInt(e.target.value);
+            tableCurrentPage = 1;
+            applyTableFilters();
         });
     }
 
@@ -859,6 +1220,57 @@ $categories_json = json_encode($categories);
         filteredItems = items;
         renderMenuItems();
         updateActiveFilters();
+    }
+
+    // Apply table filters and sorting
+    function applyTableFilters() {
+        let filtered = [...tableData];
+        
+        // Apply search filter
+        if (tableCurrentSearch) {
+            filtered = filtered.filter(table => 
+                table.name.toLowerCase().includes(tableCurrentSearch) ||
+                (table.location && table.location.toLowerCase().includes(tableCurrentSearch)) ||
+                table.capacity.toString().includes(tableCurrentSearch) ||
+                table.category.toLowerCase().includes(tableCurrentSearch)
+            );
+        }
+        
+        // Apply status filter
+        if (tableCurrentStatus !== 'all') {
+            filtered = filtered.filter(table => 
+                table.status.toLowerCase() === tableCurrentStatus.toLowerCase()
+            );
+        }
+        
+        // Apply category filter
+        if (tableCurrentCategory !== 'all') {
+            filtered = filtered.filter(table => 
+                table.category.toLowerCase() === tableCurrentCategory.toLowerCase()
+            );
+        }
+        
+        // Apply sorting
+        filtered.sort((a, b) => {
+            switch (tableCurrentSort) {
+                case 'name-asc':
+                    return a.name.localeCompare(b.name, undefined, { numeric: true });
+                case 'name-desc':
+                    return b.name.localeCompare(a.name, undefined, { numeric: true });
+                case 'capacity-asc':
+                    return a.capacity - b.capacity;
+                case 'capacity-desc':
+                    return b.capacity - a.capacity;
+                case 'status-asc':
+                    return a.status.localeCompare(b.status);
+                default:
+                    return a.name.localeCompare(b.name, undefined, { numeric: true });
+            }
+        });
+        
+        filteredTables = filtered;
+        renderTables();
+        updateTablePaginationInfo();
     }
 
     // Update active filters display
@@ -908,8 +1320,61 @@ $categories_json = json_encode($categories);
         }
     }
 
+    // Update table active filters display
+    function updateTableActiveFilters() {
+        tableActiveFilters.innerHTML = '';
+        let hasActiveFilters = false;
+        
+        if (tableCurrentStatus !== 'all') {
+            hasActiveFilters = true;
+            const statusText = tableCurrentStatus.charAt(0).toUpperCase() + tableCurrentStatus.slice(1);
+            const filterBadge = createTableFilterBadge('Status', statusText, () => {
+                tableStatusFilter.value = 'all';
+                tableCurrentStatus = 'all';
+                tableCurrentPage = 1;
+                applyTableFilters();
+            });
+            tableActiveFilters.appendChild(filterBadge);
+        }
+        
+        if (tableCurrentCategory !== 'all') {
+            hasActiveFilters = true;
+            const categoryText = tableCurrentCategory.charAt(0).toUpperCase() + tableCurrentCategory.slice(1);
+            const filterBadge = createTableFilterBadge('Category', categoryText, () => {
+                tableCategoryFilter.value = 'all';
+                tableCurrentCategory = 'all';
+                tableCurrentPage = 1;
+                applyTableFilters();
+            });
+            tableActiveFilters.appendChild(filterBadge);
+        }
+        
+        if (hasActiveFilters) {
+            tableActiveFilters.classList.remove('hidden');
+        } else {
+            tableActiveFilters.classList.add('hidden');
+        }
+    }
+
     // Create filter badge element
     function createFilterBadge(type, value, onClick) {
+        const badge = document.createElement('div');
+        badge.className = 'flex items-center gap-1 bg-[#F7B32B] text-white text-xs font-medium px-3 py-1 rounded-full';
+        badge.innerHTML = `
+            <span>${type}: ${value}</span>
+            <button type="button" class="hover:text-gray-200">
+                <i data-lucide="x" class="w-3 h-3"></i>
+            </button>
+        `;
+        
+        const removeBtn = badge.querySelector('button');
+        removeBtn.addEventListener('click', onClick);
+        
+        return badge;
+    }
+
+    // Create table filter badge element
+    function createTableFilterBadge(type, value, onClick) {
         const badge = document.createElement('div');
         badge.className = 'flex items-center gap-1 bg-[#F7B32B] text-white text-xs font-medium px-3 py-1 rounded-full';
         badge.innerHTML = `
@@ -1011,6 +1476,208 @@ $categories_json = json_encode($categories);
         updatePaginationInfo();
     }
 
+    // Render tables based on current view
+    function renderTables() {
+        const startIndex = (tableCurrentPage - 1) * tableItemsPerPage;
+        const endIndex = startIndex + tableItemsPerPage;
+        const tablesToShow = filteredTables.slice(startIndex, endIndex);
+        
+        if (isGridView) {
+            renderGridView(tablesToShow);
+        } else {
+            renderListView(tablesToShow);
+        }
+        
+        updateTablePagination();
+        updateTablePaginationInfo();
+        lucide.createIcons();
+    }
+
+    // Render grid view
+    function renderGridView(tables) {
+        tableGrid.innerHTML = '';
+        
+        if (tables.length === 0) {
+            tableGrid.innerHTML = `
+                <div class="col-span-full text-center py-12">
+                    <i data-lucide="table" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+                    <p class="text-gray-500 text-lg mb-2">No tables found</p>
+                    <p class="text-gray-400 text-sm">${tableCurrentSearch ? 'Try a different search term' : 'No tables match your filters'}</p>
+                </div>
+            `;
+            return;
+        }
+        
+        tables.forEach(table => {
+            const tableCard = document.createElement('div');
+            const isSelectable = table.status === 'Available' || table.status === 'Reserved';
+            const isDisabled = table.status === 'Maintenance' || table.status === 'Hidden';
+            
+            tableCard.className = `table-card ${getTableCardClass(table.status)} ${isDisabled ? 'disabled' : ''} ${selectedTable === table.id ? 'selected' : ''}`;
+            
+            let imageHTML = '';
+            if (table.image_url && !table.image_url.includes('default-table.jpg')) {
+                imageHTML = `
+                    <img src="${table.image_url}" 
+                         alt="Table ${table.name}" 
+                         class="table-image"
+                         onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjEwMCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5JbWFnZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+'">
+                `;
+            } else {
+                imageHTML = `
+                    <div class="table-image no-image flex flex-col items-center justify-center">
+                        <i data-lucide="table" class="w-8 h-8 mb-1"></i>
+                        <span class="text-xs">No Image</span>
+                    </div>
+                `;
+            }
+            
+            tableCard.innerHTML = `
+                <div class="relative">
+                    ${imageHTML}
+                    <div class="absolute top-2 right-2">
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-white/90 text-gray-800">
+                            ${table.category}
+                        </span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-bold">Table ${table.name}</h3>
+                        <span class="text-xs font-medium px-2 py-1 rounded-full ${getStatusBadgeClass(table.status)}">
+                            ${table.status}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                        <span>Capacity: ${table.capacity} persons</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                        <i data-lucide="map-pin" class="w-4 h-4"></i>
+                        <span>${table.location || 'Main Hall'}</span>
+                    </div>
+                    <button class="table-select-btn w-full px-4 py-2 bg-[#F7B32B] text-white rounded-lg hover:bg-[#e6a117] transition duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            data-id="${table.id}"
+                            ${!isSelectable ? 'disabled' : ''}>
+                        ${selectedTable === table.id ? 'Selected' : 'Select Table'}
+                    </button>
+                </div>
+            `;
+            
+            tableCard.addEventListener('click', (e) => {
+                if (isSelectable && !e.target.closest('.table-select-btn')) {
+                    selectTableInModal(table.id);
+                }
+            });
+            
+            const selectBtn = tableCard.querySelector('.table-select-btn');
+            selectBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectTableInModal(table.id);
+            });
+            
+            tableGrid.appendChild(tableCard);
+        });
+    }
+
+    // Render list view
+    function renderListView(tables) {
+        tableListBody.innerHTML = '';
+        
+        if (tables.length === 0) {
+            tableListBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center">
+                        <i data-lucide="table" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+                        <p class="text-gray-500 text-lg mb-2">No tables found</p>
+                        <p class="text-gray-400 text-sm">${tableCurrentSearch ? 'Try a different search term' : 'No tables match your filters'}</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tables.forEach(table => {
+            const isSelectable = table.status === 'Available' || table.status === 'Reserved';
+            const isSelected = selectedTable === table.id;
+            
+            const row = document.createElement('tr');
+            row.className = `hover:bg-gray-50 ${isSelected ? 'bg-yellow-50' : ''}`;
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                        <div class="ml-4">
+                            <div class="text-sm font-medium text-gray-900">Table ${table.name}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-900">${table.category}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-900">${table.capacity} persons</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(table.status)}">
+                        ${table.status}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${table.location || 'Main Hall'}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button class="table-select-btn-list text-[#F7B32B] hover:text-[#e6a117] disabled:text-gray-400 disabled:cursor-not-allowed"
+                            data-id="${table.id}"
+                            ${!isSelectable ? 'disabled' : ''}>
+                        ${isSelected ? 'Selected ✓' : 'Select'}
+                    </button>
+                </td>
+            `;
+            
+            row.addEventListener('click', (e) => {
+                if (isSelectable && !e.target.closest('.table-select-btn-list')) {
+                    selectTableInModal(table.id);
+                }
+            });
+            
+            const selectBtn = row.querySelector('.table-select-btn-list');
+            selectBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectTableInModal(table.id);
+            });
+            
+            tableListBody.appendChild(row);
+        });
+    }
+
+    // Select table in modal
+    function selectTableInModal(tableId) {
+        const table = tableData.find(t => t.id === tableId);
+        if (!table) return;
+        
+        if (table.status.toLowerCase() !== 'available' && table.status.toLowerCase() !== 'reserved') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Table Not Available',
+                text: `Table ${table.name} is currently ${table.status.toLowerCase()}. Please select an available table.`,
+                background: 'white',
+                color: '#333'
+            });
+            return;
+        }
+        
+        selectedTable = tableId;
+        
+        // Update selected table info
+        selectedTableInfo.textContent = `Table ${table.name} (${table.capacity} persons, ${table.category})`;
+        
+        // Re-render to update selection state
+        renderTables();
+        
+        // Enable confirm button
+        confirmTableBtn.disabled = false;
+    }
+
     // Update pagination info text
     function updatePaginationInfo() {
         const totalItems = filteredItems.length;
@@ -1020,6 +1687,20 @@ $categories_json = json_encode($categories);
         showingStartElement.textContent = startIndex;
         showingEndElement.textContent = endIndex;
         totalItemsElement.textContent = totalItems;
+    }
+
+    // Update table pagination info
+    function updateTablePaginationInfo() {
+        const totalItems = filteredTables.length;
+        const startIndex = Math.min((tableCurrentPage - 1) * tableItemsPerPage + 1, totalItems);
+        const endIndex = Math.min(tableCurrentPage * tableItemsPerPage, totalItems);
+        const totalPages = Math.ceil(totalItems / tableItemsPerPage);
+        
+        tableShowingStartElement.textContent = startIndex;
+        tableShowingEndElement.textContent = endIndex;
+        tableTotalItemsElement.textContent = totalItems;
+        tableCurrentPageElement.textContent = tableCurrentPage;
+        tableTotalPagesElement.textContent = totalPages || 1;
     }
 
     // Update pagination controls
@@ -1062,6 +1743,52 @@ $categories_json = json_encode($categories);
         nextPageButton.disabled = currentPage === totalPages || totalPages === 0;
     }
 
+    // Update table pagination controls
+    function updateTablePagination() {
+        const totalItems = filteredTables.length;
+        const totalPages = Math.ceil(totalItems / tableItemsPerPage);
+        
+        tablePageNumbers.innerHTML = '';
+        
+        if (totalPages <= 1) {
+            tablePrevPage.disabled = true;
+            tableNextPage.disabled = true;
+            return;
+        }
+        
+        if (totalPages > 0) {
+            const firstButton = createTablePageButton(1);
+            tablePageNumbers.appendChild(firstButton);
+        }
+        
+        if (tableCurrentPage > 3) {
+            const ellipsis = document.createElement('span');
+            ellipsis.className = 'py-2 px-4 border border-gray-300 bg-white text-sm font-medium text-gray-500';
+            ellipsis.textContent = '...';
+            tablePageNumbers.appendChild(ellipsis);
+        }
+        
+        for (let i = Math.max(2, tableCurrentPage - 1); i <= Math.min(totalPages - 1, tableCurrentPage + 1); i++) {
+            const pageButton = createTablePageButton(i);
+            tablePageNumbers.appendChild(pageButton);
+        }
+        
+        if (tableCurrentPage < totalPages - 2) {
+            const ellipsis = document.createElement('span');
+            ellipsis.className = 'py-2 px-4 border border-gray-300 bg-white text-sm font-medium text-gray-500';
+            ellipsis.textContent = '...';
+            tablePageNumbers.appendChild(ellipsis);
+        }
+        
+        if (totalPages > 1) {
+            const lastButton = createTablePageButton(totalPages);
+            tablePageNumbers.appendChild(lastButton);
+        }
+        
+        tablePrevPage.disabled = tableCurrentPage === 1;
+        tableNextPage.disabled = tableCurrentPage === totalPages || totalPages === 0;
+    }
+
     // Create page button
     function createPageButton(pageNumber) {
         const pageButton = document.createElement('button');
@@ -1076,98 +1803,47 @@ $categories_json = json_encode($categories);
         return pageButton;
     }
 
+    // Create table page button
+    function createTablePageButton(pageNumber) {
+        const pageButton = document.createElement('button');
+        pageButton.className = `py-2 px-4 border border-gray-300 bg-white text-sm font-medium ${
+            pageNumber === tableCurrentPage ? 'text-[#F7B32B] bg-yellow-50' : 'text-gray-500 hover:bg-gray-50'
+        }`;
+        pageButton.textContent = pageNumber;
+        pageButton.addEventListener('click', () => {
+            tableCurrentPage = pageNumber;
+            renderTables();
+        });
+        return pageButton;
+    }
+
     // Render tables in modal
     function renderTablesInModal() {
-        tableGrid.innerHTML = '';
+        // Reset filters
+        tableCurrentPage = 1;
+        tableCurrentSearch = '';
+        tableCurrentStatus = 'all';
+        tableCurrentCategory = 'all';
+        tableCurrentSort = 'name-asc';
         
-        if (tableData.length === 0) {
-            tableGrid.innerHTML = `
-                <div class="col-span-full text-center py-12">
-                    <i data-lucide="table" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
-                    <p class="text-gray-500 text-lg mb-2">No tables available</p>
-                    <p class="text-gray-400 text-sm">Please add tables in the table management system</p>
-                </div>
-            `;
-            lucide.createIcons();
-            return;
-        }
+        // Reset UI elements
+        tableSearchInput.value = '';
+        tableStatusFilter.value = 'all';
+        tableCategoryFilter.value = 'all';
+        tableSort.value = 'name-asc';
         
-        const sortedTables = [...tableData].sort((a, b) => {
-            return a.name.localeCompare(b.name, undefined, {numeric: true});
-        });
+        // Apply filters and render
+        applyTableFilters();
+        updateTableActiveFilters();
         
-        sortedTables.forEach(table => {
-            const tableCard = document.createElement('div');
-            const isSelectable = table.status === 'Available' || table.status === 'Reserved';
-            const isDisabled = table.status === 'Maintenance' || table.status === 'Hidden';
-            
-            tableCard.className = `table-card ${getTableCardClass(table.status)} ${isDisabled ? 'disabled' : ''}`;
-            
-            let imageHTML = '';
-            if (table.image_url && table.image_url.includes('default-table.jpg') === false) {
-                imageHTML = `
-                    <img src="${table.image_url}" 
-                         alt="Table ${table.name}" 
-                         class="table-image"
-                         onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjEwMCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5JbWFnZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+'">
-                `;
-            } else {
-                imageHTML = `
-                    <div class="table-image no-image flex flex-col items-center justify-center">
-                        <i data-lucide="table" class="w-8 h-8 mb-1"></i>
-                        <span class="text-xs">No Image</span>
-                    </div>
-                `;
-            }
-            
-            tableCard.innerHTML = `
-                <div class="relative">
-                    ${imageHTML}
-                    <div class="absolute top-2 right-2">
-                        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-white/90 text-gray-800">
-                            ${table.category}
-                        </span>
-                    </div>
-                </div>
-                <div class="p-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-lg font-bold">Table ${table.name}</h3>
-                        <span class="text-xs font-medium px-2 py-1 rounded-full ${getStatusBadgeClass(table.status)}">
-                            ${table.status}
-                        </span>
-                    </div>
-                    <div class="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                        <i data-lucide="users" class="w-4 h-4"></i>
-                        <span>Capacity: ${table.capacity} persons</span>
-                    </div>
-                    <div class="flex items-center gap-2 text-sm text-gray-600">
-                        <i data-lucide="tag" class="w-4 h-4"></i>
-                        <span>Type: ${table.category}</span>
-                    </div>
-                </div>
-            `;
-            
-            if (isSelectable) {
-                tableCard.addEventListener('click', () => {
-                    document.querySelectorAll('.table-card').forEach(card => {
-                        card.classList.remove('selected');
-                    });
-                    
-                    tableCard.classList.add('selected');
-                    selectedTable = table.id;
-                    
-                    confirmTableBtn.disabled = false;
-                    
-                    selectedTableInfo.textContent = `Table ${table.name} (${table.capacity} persons, ${table.category})`;
-                });
-            }
-            
-            tableGrid.appendChild(tableCard);
-        });
+        // Reset selection
+        selectedTable = null;
+        selectedTableInfo.textContent = 'No table selected';
+        confirmTableBtn.disabled = true;
         
-        lucide.createIcons();
-        
-        confirmTableBtn.disabled = selectedTable === null;
+        // Show modal
+        tableModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
     }
 
     // Get table card CSS class based on status
@@ -1430,6 +2106,9 @@ $categories_json = json_encode($categories);
         serviceChargeElement.textContent = `₱${serviceCharge.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
         vatElement.textContent = `₱${vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
         totalBillElement.textContent = `₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        
+        // Recalculate change when bill updates
+        calculateChange();
     }
 
     // Generate order code
@@ -1452,12 +2131,29 @@ $categories_json = json_encode($categories);
             return null;
         }
 
+        const totalBillText = totalBillElement.textContent.replace('₱', '').replace(/,/g, '');
+        const totalAmount = parseFloat(totalBillText) || 0;
+        
+        // Validate amount received for cash payments
+        if (selectedPaymentMethod === 'cash') {
+            const change = calculateChange();
+            if (change < 0) {
+                throw new Error('Insufficient payment. Please enter a sufficient amount.');
+            }
+            
+            if (amountReceived <= 0) {
+                throw new Error('Please enter the amount received from customer.');
+            }
+        }
+
         const orderData = {
             order_code: generateOrderCode(),
             table_id: selectedTableDetails.id,
             customer_name: customerNameInput.value.trim() || 'Walk-in Customer',
             order_type: 'dine-in',
-            total_amount: parseFloat(totalBillElement.textContent.replace('₱', '').replace(/,/g, '')),
+            total_amount: totalAmount,
+            amount_received: amountReceived,
+            change_amount: changeAmount,
             payment_method: selectedPaymentMethod || 'cash',
             notes: orderNotesInput.value.trim(),
             order_items: orderItems
@@ -1529,7 +2225,35 @@ $categories_json = json_encode($categories);
         
         const customerName = customerNameInput.value.trim() || 'Walk-in Customer';
         const total = totalBillElement.textContent;
+        const amount = amountReceivedInput.value ? `₱${parseFloat(amountReceivedInput.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '₱0.00';
+        const change = changeAmountElement.textContent;
         
+        // Validate cash payment
+        if (selectedPaymentMethod === 'cash') {
+            if (!amountReceivedInput.value || parseFloat(amountReceivedInput.value) <= 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Amount Required',
+                    text: 'Please enter the amount received from customer for cash payment.',
+                    background: 'white',
+                    color: '#333'
+                });
+                amountReceivedInput.focus();
+                return;
+            }
+            
+            if (changeAmount < 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Insufficient Payment',
+                    text: `Customer paid ${amount} but total is ${total}. Please collect ₱${(-changeAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} more.`,
+                    background: 'white',
+                    color: '#333'
+                });
+                return;
+            }
+        }
+
         Swal.fire({
             title: 'Confirm Payment',
             html: `
@@ -1538,6 +2262,10 @@ $categories_json = json_encode($categories);
                     <p><strong>Table:</strong> ${selectedTableText.textContent}</p>
                     <p><strong>Payment Method:</strong> ${selectedPaymentMethod.toUpperCase()}</p>
                     <p><strong>Total Amount:</strong> ${total}</p>
+                    ${selectedPaymentMethod === 'cash' ? `
+                        <p><strong>Amount Received:</strong> ${amount}</p>
+                        <p><strong>Change:</strong> ${change}</p>
+                    ` : ''}
                 </div>
             `,
             icon: 'question',
@@ -1574,6 +2302,10 @@ $categories_json = json_encode($categories);
                                     <p><strong>Order #:</strong> ${result.order_code}</p>
                                     <p><strong>Table:</strong> ${result.table_name}</p>
                                     <p><strong>Total:</strong> ₱${parseFloat(result.total_amount).toLocaleString()}</p>
+                                    ${selectedPaymentMethod === 'cash' ? `
+                                        <p><strong>Amount Received:</strong> ₱${parseFloat(result.amount_received).toLocaleString()}</p>
+                                        <p><strong>Change:</strong> ₱${parseFloat(result.change_amount).toLocaleString()}</p>
+                                    ` : ''}
                                     <p class="text-green-600 font-medium">✓ Receipt has been automatically downloaded</p>
                                     ${downloadSuccess ? '' : '<p class="text-yellow-600">Note: If receipt didn\'t download, click "View Receipt" button</p>'}
                                 </div>
@@ -1620,9 +2352,20 @@ $categories_json = json_encode($categories);
         }).then((result) => {
             if (result.isConfirmed) {
                 orderItems = [];
+                amountReceivedInput.value = '';
+                amountReceived = 0;
+                changeAmount = 0;
+                selectedPaymentMethod = null;
+                
+                // Reset payment method buttons
+                mopButtons.forEach(btn => {
+                    btn.classList.remove('border-[#F7B32B]', 'bg-yellow-50');
+                });
+                
                 updateOrderDisplay();
                 updateBill();
                 updateItemCount();
+                calculateChange();
                 
                 Swal.fire({
                     icon: 'success',
@@ -1642,7 +2385,6 @@ $categories_json = json_encode($categories);
     // Initialize the POS system when the page loads
     document.addEventListener('DOMContentLoaded', init);
 </script>
-
 
 <!-- Your existing notification script -->
 <script>
@@ -1765,6 +2507,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Manual refresh on button click
   notifButton.addEventListener("click", fetchNotifications);
 });
-</script>  
+</script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 <?php
 session_start();
-include("../../main_connection.php");
+include("../main_connection.php");
 
 $db_name = "rest_m1_trs";
 if (!isset($connections[$db_name])) {
@@ -77,7 +77,7 @@ $paginatedTables = array_slice($tables, $startIndex, $itemsPerPage);
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Table Management</title>
-    <?php include '../../header.php'; ?>
+    <?php include '../header.php'; ?>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -133,12 +133,12 @@ $paginatedTables = array_slice($tables, $startIndex, $itemsPerPage);
 
   <div class="flex h-screen">
     <!-- Sidebar -->
-    <?php include '../../sidebarr.php'; ?>
+    <?php include '../sidebarr.php'; ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
         <!-- Navbar -->
-        <?php include '../../navbar.php'; ?>
+        <?php include '../navbar.php'; ?>
 
         <!-- Main Content -->
         <main class="flex-1 overflow-auto p-4 md:p-6 bg-white">
@@ -354,7 +354,7 @@ $paginatedTables = array_slice($tables, $startIndex, $itemsPerPage);
                                 <!-- Image Section -->
                                 <div class="relative">
                                     <?php if (!empty($table['image_url'])): ?>
-                                        <img src="../Table_images/<?php echo htmlspecialchars($table['image_url']); ?>" 
+                                        <img src="Table_images/<?php echo htmlspecialchars($table['image_url']); ?>" 
                                              alt="<?php echo htmlspecialchars($table['name']); ?>" 
                                              class="w-full h-48 object-cover rounded-t-xl transition-transform duration-500 hover:scale-110"
                                              onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjEwMCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5JbWFnZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+'">
@@ -670,7 +670,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             });
 
-            fetch("../../M1/sub-modules/add_table.php", {
+            fetch("sub-modules/add_table.php", {
                 method: "POST",
                 body: formData
             })
@@ -721,7 +721,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Global functions for table actions
 window.openViewModal = function(tableId) {
     // Fetch table details via AJAX
-    fetch(`view_table.php?id=${tableId}`)
+    fetch(`sub-modules/view_table.php?id=${tableId}`)
         .then((res) => res.json())
         .then((response) => {
             if (response.status !== "success") {
@@ -743,7 +743,7 @@ window.openViewModal = function(tableId) {
                     <!-- Image Section -->
                     <div class="rounded-lg overflow-hidden">
                         <?php if (!empty($table['image_url'])): ?>
-                            <img src="../Table_images/${table.image_url}" 
+                            <img src="Table_images/${table.image_url}" 
                                  alt="${table.name}" 
                                  class="w-full h-64 object-cover transition-transform duration-500 hover:scale-110"
                                  onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjEwMCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5JbWFnZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+'">
@@ -885,7 +885,7 @@ window.performTableAction = function(tableId, action) {
             formData.append('action', action);
             formData.append('table_id', tableId);
 
-            fetch("crud_table.php", {
+            fetch("sub-modules/crud_table.php", {
                 method: "POST",
                 body: formData
             })
@@ -1152,7 +1152,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const notifContainer = document.querySelector(".dropdown-content .max-h-96");
   const notifBadge = document.getElementById("notif-badge");
   const clearAllBtn = document.querySelector(".dropdown-content button.text-blue-300");
-  const apiURL = "../../notification_api.php";
+  const apiURL = "../notification_api.php";
 
   let currentNotifIds = new Set();
   let lastFetch = 0;

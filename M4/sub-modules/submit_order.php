@@ -26,6 +26,7 @@ $conn_billing = $connections["rest_m7_billing_payments"] ?? respond('error', 'Co
 $conn_kot = $connections["rest_m6_kot"] ?? respond('error', 'Connection not found for KOT');
 $conn_tables = $connections["rest_m1_trs"] ?? respond('error', 'Connection not found for Tables');
 $conn_core_audit = $connections["rest_core_2_usm"] ?? respond('error', 'Connection not found for Audit');
+$conn_reviews = $connections["rest_m10_comments_review"] ?? respond('error', 'Connection not found for Reviews');
 
 // =======================
 // Collect request data - SUPPORT MULTIPLE METHODS
@@ -55,10 +56,13 @@ $table_id       = $input_data['table_id'] ?? $input_data['tableId'] ?? $input_da
 $customer_name  = $input_data['customer_name'] ?? $input_data['customerName'] ?? $input_data['customer'] ?? 'Walk-in Customer';
 $order_type     = $input_data['order_type'] ?? $input_data['orderType'] ?? 'dine-in';
 $total_amount   = $input_data['total_amount'] ?? $input_data['totalAmount'] ?? $input_data['total'] ?? 0;
+$amount_received = $input_data['amount_received'] ?? $input_data['amountReceived'] ?? 0;
+$change_amount  = $input_data['change_amount'] ?? $input_data['changeAmount'] ?? 0;
 $mop            = $input_data['MOP'] ?? $input_data['payment_method'] ?? $input_data['paymentMethod'] ?? 'cash';
 $notes          = $input_data['notes'] ?? $input_data['special_instructions'] ?? '';
 $placed_by      = $input_data['placed_by'] ?? $input_data['placedBy'] ?? '';
 $served_by      = $input_data['served_by'] ?? $input_data['servedBy'] ?? '';
+$review_link    = $input_data['review_link'] ?? $input_data['feedback_url'] ?? 'https://restaurant.soliera-hotel-restaurant.com/';
 
 // Handle order items - could be in different formats
 $orders_json = '';
@@ -78,6 +82,7 @@ $created_at     = date("Y-m-d H:i:s");
 
 // Debug logging
 error_log("Extracted values - order_code: $order_code, table_id: $table_id, customer_name: $customer_name");
+error_log("Payment details - amount_received: $amount_received, change_amount: $change_amount, MOP: $mop");
 
 // Validate required fields - with better error messages
 $missing_fields = [];
@@ -162,6 +167,26 @@ if (abs($calculated_total_with_tax - floatval($total_amount)) > $tolerance) {
     }
 }
 
+// Validate amount received for cash payments
+if ($mop === 'cash') {
+    if (empty($amount_received) || $amount_received <= 0) {
+        respond('error', 'For cash payments, amount received must be greater than 0');
+    }
+    
+    if ($amount_received < $total_amount) {
+        respond('error', 'Amount received (₱' . number_format($amount_received, 2) . ') is less than total amount (₱' . number_format($total_amount, 2) . ')');
+    }
+    
+    // Calculate change if not provided
+    if (empty($change_amount) || $change_amount < 0) {
+        $change_amount = $amount_received - $total_amount;
+    }
+} else {
+    // For non-cash payments, set amount_received = total_amount and change = 0
+    $amount_received = $total_amount;
+    $change_amount = 0;
+}
+
 // Get table details
 $stmt_table = $conn_tables->prepare("SELECT name, status FROM tables WHERE table_id = ?");
 $stmt_table->bind_param("i", $table_id);
@@ -199,6 +224,7 @@ try {
     $conn_kot->begin_transaction();
     $conn_tables->begin_transaction();
     $conn_core_audit->begin_transaction();
+    $conn_reviews->begin_transaction();
 
     // =======================
     // Step 1: Update table status to Occupied
@@ -213,23 +239,25 @@ try {
     $stmt_update_table->close();
 
     // =======================
-    // Step 2: Insert into POS.orders
+    // Step 2: Insert into POS.orders with amount and change
     // =======================
     $status_pos = "Pending";
     
     $sql_pos = "INSERT INTO orders 
-        (order_code, table_id, customer_name, order_type, status, total_amount, MOP, placed_by, served_by, notes, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        (order_code, table_id, customer_name, order_type, status, total_amount, amount_received, change_amount, MOP, placed_by, served_by, notes, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     
     $stmt_pos = $conn_pos->prepare($sql_pos);
     $stmt_pos->bind_param(
-        "sisssdsssss",
+        "sisssddssssss",
         $order_code,
         $table_id,
         $customer_name,
         $order_type,
         $status_pos,
         $total_amount,
+        $amount_received,
+        $change_amount,
         $mop,
         $placed_by,
         $served_by,
@@ -244,7 +272,7 @@ try {
     $stmt_pos->close();
 
     // =======================
-    // Step 3: Insert into Billing
+    // Step 3: Insert into Billing with amount and change
     // =======================
     $invoice_number = $order_code;
     $invoice_date   = date("Y-m-d");
@@ -258,12 +286,12 @@ try {
 
     $sql_billing = "INSERT INTO billing_payments 
         (client_name, client_email, client_contact, invoice_number, invoice_date, status, 
-         description, quantity, unit_price, total_amount, payment_date, MOP, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+         description, quantity, unit_price, total_amount, amount_received, change_amount, payment_date, MOP, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     
     $stmt_billing = $conn_billing->prepare($sql_billing);
     $stmt_billing->bind_param(
-        "ssssssssddsss", 
+        "ssssssssdddssss", 
         $customer_name,
         $client_email,
         $client_contact,
@@ -274,6 +302,8 @@ try {
         $quantity,
         $unit_price,
         $total_amount,
+        $amount_received,
+        $change_amount,
         $payment_date,
         $mop,
         $created_at
@@ -319,7 +349,34 @@ try {
     $stmt_kot->close();
 
     // =======================
-    // Step 5: Get Employee Info for Audit
+    // Step 5: Create review entry for the order
+    // =======================
+    $review_status = "pending";
+    $order_items_json = json_encode($order_items);
+    
+    $sql_reviews = "INSERT INTO customer_reviews 
+        (order_code, customer_name, table_name, order_items, status, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?)";
+    
+    $stmt_reviews = $conn_reviews->prepare($sql_reviews);
+    $stmt_reviews->bind_param(
+        "ssssss",
+        $order_code,
+        $customer_name,
+        $table_name,
+        $order_items_json,
+        $review_status,
+        $created_at
+    );
+    
+    if (!$stmt_reviews->execute()) {
+        throw new Exception('Review entry creation error: ' . $stmt_reviews->error);
+    }
+    $review_id = $stmt_reviews->insert_id;
+    $stmt_reviews->close();
+
+    // =======================
+    // Step 6: Get Employee Info for Audit
     // =======================
     $employee_id   = $_SESSION['employee_id'] ?? ($_SESSION['User_ID'] ?? 0);
     $employee_name = $_SESSION['employee_name'] ?? ($_SESSION['Name'] ?? '');
@@ -394,10 +451,11 @@ try {
     }
 
     // =======================
-    // Step 6: Insert Notification for POS Order (CN time)
+    // Step 7: Insert Notification for POS Order (CN time)
     // =======================
     $notification_title   = "New Order Placed";
-    $notification_message = "Order #{$order_code} has been placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2);
+    $notification_message = "Order #{$order_code} has been placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2) . 
+                           ($mop === 'cash' ? " (Cash: ₱" . number_format($amount_received, 2) . ", Change: ₱" . number_format($change_amount, 2) . ")" : "");
     $notification_status  = "Unread";
     $module               = "POS Order Management";
 
@@ -439,11 +497,13 @@ try {
     }
 
     // =======================
-    // Step 7: Insert Audit Log for POS Order (PH time)
+    // Step 8: Insert Audit Log for POS Order (PH time)
     // =======================
     $modules_cover = "POS Order Management";
     $action        = "Order Placed";
-    $activity      = "Order #{$order_code} placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2) . " (Items: " . count($order_items) . ")";
+    $activity      = "Order #{$order_code} placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2) . 
+                     ($mop === 'cash' ? " (Cash: ₱" . number_format($amount_received, 2) . ", Change: ₱" . number_format($change_amount, 2) . ")" : "") . 
+                     " (Items: " . count($order_items) . ")";
     
     $auditDatePH   = new DateTime('now', new DateTimeZone('Asia/Manila'));
     $audit_date    = $auditDatePH->format('Y-m-d H:i:s');
@@ -476,7 +536,7 @@ try {
     }
 
     // =======================
-    // Step 8: Generate Receipt Data and JPEG Image
+    // Step 9: Generate Receipt JPEG with QR Code
     // =======================
     
     // Get current Manila time for receipt
@@ -485,11 +545,13 @@ try {
     $receipt_time = $manilaDateTime->format('h:i A');   // e.g., "02:30 PM"
     $receipt_timestamp = $manilaDateTime->format('Y-m-d H:i:s');
     
+    // Create review URL with order code
+    $review_url = $review_link . "?order_code=" . urlencode($order_code);
+    
     $receipt_data = [
         'restaurant_name' => 'SOLIERA HOTEL & RESTAURANT',
         'restaurant_address' => '123 Jorge City, Valenzuela, Philippines',
         'restaurant_contact' => '(02) 8123-4567',
-        'restaurant_logo' => '../../images/soliera_S.png',
         'order_id' => $order_code,
         'invoice_number' => $invoice_number,
         'date' => $receipt_date,
@@ -505,51 +567,59 @@ try {
         'service_charge' => number_format($service_charge, 2),
         'vat' => number_format($vat, 2),
         'total' => number_format($total_amount, 2),
+        'amount_received' => number_format($amount_received, 2),
+        'change_amount' => number_format($change_amount, 2),
         'payment_method' => strtoupper($mop),
         'payment_status' => $status_billing,
         'notes' => $notes,
         'items_count' => count($order_items),
         'thank_you_message' => 'Thank you for dining with us!',
+        'review_url' => $review_url,
         'watermark_text' => 'SOLIERA HOTEL & RESTAURANT',
         'background_image' => '../../images/receipt-bg.jpg'
     ];
 
-    // Generate receipt JPEG
+    // Generate receipt JPEG with QR code
     $jpeg_data = generateReceiptJPEG($receipt_data);
     
     // Generate receipt HTML for preview
     $receipt_html = generateReceiptHTML($receipt_data);
 
     // =======================
-    // Step 9: Commit all transactions
+    // Step 10: Commit all transactions
     // =======================
     $conn_pos->commit();
     $conn_billing->commit();
     $conn_kot->commit();
     $conn_tables->commit();
     $conn_core_audit->commit();
+    $conn_reviews->commit();
 
     // =======================
-    // Step 10: Return success response with download link
+    // Step 11: Return success response with download link
     // =======================
     $download_url = "data:image/jpeg;base64," . base64_encode($jpeg_data);
     
     respond('success', 'Order submitted successfully! Table status updated to Occupied.', [
         'order_id' => $order_id,
         'billing_id' => $billing_id,
+        'review_id' => $review_id,
         'order_code' => $order_code,
         'table_status' => $new_table_status,
         'table_name' => $table_name,
         'customer_name' => $customer_name,
         'total_amount' => $total_amount,
+        'amount_received' => $amount_received,
+        'change_amount' => $change_amount,
         'placed_by' => $placed_by,
         'served_by' => $served_by,
+        'review_url' => $review_url,
         'receipt_data' => $receipt_data,
         'receipt_html' => $receipt_html,
         'receipt_jpeg' => $download_url,
         'receipt_filename' => "receipt_{$order_code}.jpg",
         'auto_download' => true,
-        'download_instructions' => 'The receipt JPEG has been generated and will auto-download.',
+        'download_instructions' => 'The receipt JPEG with QR code has been generated and will auto-download.',
         'items_count' => count($order_items),
         'current_time_manila' => $receipt_timestamp
     ]);
@@ -561,6 +631,9 @@ try {
     $conn_kot->rollback();
     $conn_tables->rollback();
     $conn_core_audit->rollback();
+    if (isset($conn_reviews)) {
+        $conn_reviews->rollback();
+    }
     
     respond('error', $e->getMessage());
 } finally {
@@ -570,10 +643,11 @@ try {
     if (isset($conn_kot)) $conn_kot->close();
     if (isset($conn_tables)) $conn_tables->close();
     if (isset($conn_core_audit)) $conn_core_audit->close();
+    if (isset($conn_reviews)) $conn_reviews->close();
 }
 
 // =======================
-// Function to generate receipt JPEG with TrueType fonts for Peso sign
+// Function to generate receipt JPEG with QR Code
 // =======================
 function generateReceiptJPEG($data) {
     // Check if GD library is available
@@ -582,9 +656,9 @@ function generateReceiptJPEG($data) {
         return '';
     }
     
-    // Create image dimensions
+    // Create image dimensions - increased height for QR code
     $width = 500;
-    $height = 750;
+    $height = 950; // Increased height for QR code
     $image = imagecreatetruecolor($width, $height);
     
     if (!$image) {
@@ -602,6 +676,7 @@ function generateReceiptJPEG($data) {
     $blue = imagecolorallocate($image, 0, 0, 255);
     $gold = imagecolorallocate($image, 255, 215, 0);
     $dark_red = imagecolorallocate($image, 178, 34, 34);
+    $qr_color = imagecolorallocate($image, 0, 102, 204); // Blue color for QR
     
     // Fill background with white
     imagefilledrectangle($image, 0, 0, $width, $height, $white);
@@ -689,9 +764,9 @@ function generateReceiptJPEG($data) {
     imageline($image, 20, $y, $width-20, $y, $gray);
     $y += 15;
     
-    // List items (max 12)
+    // List items (max 8 to leave space for QR code)
     $item_count = 0;
-    $max_items = 12;
+    $max_items = 8;
     foreach ($data['items'] as $item) {
         if ($item_count >= $max_items) {
             $remaining = count($data['items']) - $max_items;
@@ -748,6 +823,7 @@ function generateReceiptJPEG($data) {
     }
     $y += 25;
     
+    // Total line
     imageline($image, 20, $y, $width-20, $y, $black);
     $y += 25;
     
@@ -760,6 +836,25 @@ function generateReceiptJPEG($data) {
     }
     $y += 35;
     
+    // Payment details (only for cash)
+    if (isset($data['amount_received']) && $data['payment_method'] === 'CASH') {
+        addTextToImage($image, 30, $y, "Amount Received:", $black, 11, $font_path, $use_ttf);
+        if ($use_ttf) {
+            addTextToImage($image, 370, $y, '₱' . $data['amount_received'], $green, 11, $font_path, $use_ttf);
+        } else {
+            addTextToImage($image, 370, $y, 'PHP ' . $data['amount_received'], $green, 11, $font_path, $use_ttf);
+        }
+        $y += 25;
+        
+        addTextToImage($image, 30, $y, "Change:", $black, 11, $font_path, $use_ttf);
+        if ($use_ttf) {
+            addTextToImage($image, 370, $y, '₱' . $data['change_amount'], $green, 11, $font_path, $use_ttf);
+        } else {
+            addTextToImage($image, 370, $y, 'PHP ' . $data['change_amount'], $green, 11, $font_path, $use_ttf);
+        }
+        $y += 35;
+    }
+    
     // Payment info
     addTextToImage($image, 30, $y, "Payment Method:", $black, 11, $font_path, $use_ttf);
     addTextToImage($image, 370, $y, strtoupper($data['payment_method']), $green, 11, $font_path, $use_ttf);
@@ -767,7 +862,36 @@ function generateReceiptJPEG($data) {
     
     addTextToImage($image, 30, $y, "Status:", $black, 11, $font_path, $use_ttf);
     addTextToImage($image, 370, $y, "PAID", $green, 11, $font_path, $use_ttf);
-    $y += 35;
+    $y += 45;
+    
+    // Separator line before QR code
+    imageline($image, 20, $y, $width-20, $y, $gray);
+    $y += 25;
+    
+    // QR Code Section Title
+    addTextToImage($image, 150, $y, "RATE YOUR EXPERIENCE", $qr_color, 14, $font_path, $use_ttf);
+    $y += 25;
+    addTextToImage($image, 120, $y, "Scan QR Code to Submit Review", $dark_gray, 10, $font_path, $use_ttf);
+    $y += 30;
+    
+    // Generate and add QR Code
+    $qr_code_data = generateQRCode($data['review_url'], 90);
+    if ($qr_code_data) {
+        $qr_image = imagecreatefromstring($qr_code_data);
+        if ($qr_image) {
+            $qr_width = imagesx($qr_image);
+            $qr_height = imagesy($qr_image);
+            $qr_x = ($width - $qr_width) / 2;
+            imagecopy($image, $qr_image, $qr_x, $y, 0, 0, $qr_width, $qr_height);
+            imagedestroy($qr_image);
+            $y += $qr_height + 20;
+        }
+    }
+    
+    // QR Code Instructions
+     // QR Code Instructions
+    addTextToImage($image, 100, $y, "Scan to leave feedback & win rewards!", $qr_color, 11, $font_path, $use_ttf);
+    $y += 40;
     
     // Footer
     addTextToImage($image, 150, $y, "THANK YOU!", $gold, 14, $font_path, $use_ttf);
@@ -779,10 +903,9 @@ function generateReceiptJPEG($data) {
     $manila_time = date('Y-m-d h:i A', strtotime($data['timestamp']));
     addTextToImage($image, 160, $y, "Printed: " . $manila_time, $gray, 9, $font_path, $use_ttf);
     
-    // Add watermark at bottom
+    // Add watermark at bottom - moved further down
     $watermark_color = imagecolorallocatealpha($image, 200, 200, 200, 60);
-    addTextToImage($image, 80, $height-40, "SOLIERA HOTEL & RESTAURANT", $watermark_color, 14, $font_path, $use_ttf);
-    
+    addTextToImage($image, 80, $height-30, "SOLIERA HOTEL & RESTAURANT", $watermark_color, 14, $font_path, $use_ttf);
     // Output image to buffer
     ob_start();
     $result = imagejpeg($image, null, 90);
@@ -801,8 +924,81 @@ function generateReceiptJPEG($data) {
         return '';
     }
     
-    error_log("SUCCESS: JPEG generated - Size: " . strlen($image_data) . " bytes");
-    error_log("Font used: " . ($use_ttf ? "TrueType" : "Basic GD"));
+    error_log("SUCCESS: JPEG generated with QR code - Size: " . strlen($image_data) . " bytes");
+    return $image_data;
+}
+
+// =======================
+// Helper function to generate QR code
+// =======================
+function generateQRCode($url, $size = 150) {
+    // Check if cURL is available
+    if (!function_exists('curl_init')) {
+        error_log("cURL not available. Cannot generate QR code.");
+        return null;
+    }
+    
+    // Use an online QR code API
+    $api_url = "https://api.qrserver.com/v1/create-qr-code/?size={$size}x{$size}&data=" . urlencode($url);
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $api_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    
+    $qr_data = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($http_code == 200 && !empty($qr_data)) {
+        return $qr_data;
+    } else {
+        // Fallback: Generate simple QR code using PHP GD
+        error_log("QR API failed, using fallback GD method");
+        return generateSimpleQRCode($url, $size);
+    }
+}
+
+// =======================
+// Fallback function to generate simple QR code using GD
+// =======================
+function generateSimpleQRCode($url, $size) {
+    // Create a simple representation of QR code
+    $image = imagecreatetruecolor($size, $size);
+    $white = imagecolorallocate($image, 255, 255, 255);
+    $black = imagecolorallocate($image, 0, 0, 0);
+    
+    // Fill with white
+    imagefilledrectangle($image, 0, 0, $size, $size, $white);
+    
+    // Create simple pattern (just for visualization)
+    $cell_size = 5;
+    $cells = floor($size / $cell_size);
+    
+    // Fill with random pattern (in real implementation, use a QR library)
+    for ($x = 0; $x < $cells; $x++) {
+        for ($y = 0; $y < $cells; $y++) {
+            if (($x + $y) % 3 == 0 || ($x * $y) % 5 == 0) {
+                $x1 = $x * $cell_size;
+                $y1 = $y * $cell_size;
+                $x2 = $x1 + $cell_size - 1;
+                $y2 = $y1 + $cell_size - 1;
+                imagefilledrectangle($image, $x1, $y1, $x2, $y2, $black);
+            }
+        }
+    }
+    
+    // Add text "SCAN ME" in the center
+    $text_color = imagecolorallocate($image, 0, 102, 204);
+    imagestring($image, 3, ($size/2)-20, ($size/2)-5, "SCAN ME", $text_color);
+    
+    // Output to buffer
+    ob_start();
+    imagepng($image);
+    $image_data = ob_get_clean();
+    imagedestroy($image);
+    
     return $image_data;
 }
 
@@ -846,45 +1042,6 @@ function addTextToImage($image, $x, $y, $text, $color, $size, $font_path = null,
         $gd_size = max(1, min(5, floor($size / 3)));
         imagestring($image, $gd_size, $x, $y - 8, $text, $color);
     }
-}
-
-// =======================
-// Fallback function if main function fails
-// =======================
-function generateSimpleTestImage() {
-    $image = imagecreatetruecolor(400, 200);
-    $white = imagecolorallocate($image, 255, 255, 255);
-    $black = imagecolorallocate($image, 0, 0, 0);
-    $red = imagecolorallocate($image, 255, 0, 0);
-    $gold = imagecolorallocate($image, 255, 215, 0);
-    
-    imagefilledrectangle($image, 0, 0, 400, 200, $white);
-    imagerectangle($image, 0, 0, 399, 199, $black);
-    
-    imagestring($image, 5, 120, 20, "SOLIERA RECEIPT", $red);
-    imagestring($image, 3, 100, 60, "Order processed successfully", $black);
-    
-    // Try to find font for peso sign
-    $font_path = findTrueTypeFont();
-    if ($font_path) {
-        $ttf_size = 12;
-        $adjusted_y = 100 + $ttf_size;
-        imagettftext($image, $ttf_size, 0, 120, $adjusted_y, $black, $font_path, "Total: ₱" . number_format(0, 2));
-    } else {
-        imagestring($image, 3, 120, 90, "Total: PHP " . number_format(0, 2), $black);
-    }
-    
-    // Use Manila time
-    $manila_time = date('Y-m-d h:i A');
-    imagestring($image, 2, 140, 120, $manila_time, $black);
-    imagestring($image, 4, 130, 150, "THANK YOU!", $gold);
-    
-    ob_start();
-    imagejpeg($image, null, 90);
-    $data = ob_get_clean();
-    imagedestroy($image);
-    
-    return $data;
 }
 
 // =======================
@@ -982,6 +1139,13 @@ function generateReceiptHTML($data) {
                 margin-top: 5px; 
                 font-size: 14px;
             }
+            .payment-details {
+                background: #f8f9fa;
+                padding: 10px;
+                border-radius: 4px;
+                margin-bottom: 15px;
+                border: 1px dashed #dee2e6;
+            }
             .payment-info { 
                 margin-bottom: 15px; 
             }
@@ -996,6 +1160,25 @@ function generateReceiptHTML($data) {
                 margin-bottom: 5px; 
                 color: #D4AF37;
                 font-size: 14px;
+            }
+            .qr-section {
+                text-align: center;
+                margin: 20px 0;
+                padding: 15px;
+                border: 1px dashed #0066cc;
+                border-radius: 8px;
+                background: #f0f8ff;
+            }
+            .qr-title {
+                color: #0066cc;
+                font-weight: bold;
+                margin-bottom: 10px;
+                font-size: 14px;
+            }
+            .qr-instructions {
+                font-size: 10px;
+                color: #666;
+                margin-top: 10px;
             }
             .cut-line { 
                 text-align: center; 
@@ -1027,12 +1210,18 @@ function generateReceiptHTML($data) {
                 text-align: center;
                 margin-top: 2px;
             }
+            .cash-details {
+                background: #e8f5e9;
+                padding: 8px;
+                border-radius: 3px;
+                margin: 5px 0;
+            }
         </style>
     </head>
     <body>
         <div class="receipt">
             <div class="auto-download-notice">
-                ✓ Receipt auto-downloaded
+                ✓ Receipt with QR code generated
             </div>
             
             <div class="header">
@@ -1115,6 +1304,19 @@ function generateReceiptHTML($data) {
                 </div>
             </div>
             
+            <?php if ($data['payment_method'] === 'CASH'): ?>
+            <div class="payment-details">
+                <div class="info-row">
+                    <span class="info-label">Amount Received:</span>
+                    <span class="cash-details">₱<?php echo $data['amount_received']; ?></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Change:</span>
+                    <span class="cash-details">₱<?php echo $data['change_amount']; ?></span>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <div class="payment-info">
                 <div class="info-row">
                     <span class="info-label">Payment Method:</span>
@@ -1124,6 +1326,16 @@ function generateReceiptHTML($data) {
                     <span class="info-label">Payment Status:</span>
                     <span><?php echo htmlspecialchars($data['payment_status']); ?></span>
                 </div>
+            </div>
+            
+            <!-- QR Code Section -->
+            <div class="qr-section">
+                <div class="qr-title">RATE YOUR EXPERIENCE</div>
+                <div style="color: #666; font-size: 10px; margin-bottom: 10px;">Scan QR Code to Submit Review</div>
+                <div style="background: #fff; padding: 10px; display: inline-block; border: 1px solid #ddd;">
+                    [QR Code would appear here]
+                </div>
+                <div class="qr-instructions">Scan to leave feedback & win rewards!</div>
             </div>
             
             <?php if (!empty($data['notes'])): ?>
@@ -1143,7 +1355,6 @@ function generateReceiptHTML($data) {
                 <div class="timestamp">Printed: <?php echo $data['timestamp']; ?> (UTC+8)</div>
                 <div>Powered by SOLIERA HOTEL & RESTAURANT POS</div>
             </div>
-            
         </div>
         
         <script>

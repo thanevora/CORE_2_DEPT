@@ -40,11 +40,13 @@ $module_to_landing = [
     'billing' => '../M7/main.php',
     'staff_management' => '../M9/wait_main.php',
     'customer_feedback' => '../M10/comments_main.php', // Fixed: was pointing to wait_main.php
+    'USM' => 'profile.php', // Fixed: was pointing to wait_main.php
+
 ];
 
 // For supervisors/admins, redirect to analytics dashboard
 if ($session_role === 'supervisor' || $session_role === 'admin') {
-    header("Location: ../Analytics/Analytics_metabase.php");
+    header("Location: profile.php");
     exit;
 }
 

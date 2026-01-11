@@ -45,7 +45,7 @@ if ($table_name === '' || $category === '' || $capacity <= 0) {
 
 // Handle image upload
 if (isset($_FILES['table_image']) && $_FILES['table_image']['error'] === UPLOAD_ERR_OK) {
-    $uploadDir = '../../M1/Table_images/';
+    $uploadDir = '../Table_images/';
     
     // Create directory if it doesn't exist
     if (!file_exists($uploadDir)) {
