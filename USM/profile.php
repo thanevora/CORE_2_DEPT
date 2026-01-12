@@ -291,7 +291,7 @@ if ($activity_table) {
 $total_activities = $total_activity_logs;
 $total_logins = $total_login_logs;
 
-// Total password changes count
+// Total password changes count - This query looks correct
 $password_changes_query = "SELECT COUNT(*) as total_changes FROM department_logs WHERE employee_name = ? AND log_type = 'password_change'";
 $password_stmt = $conn->prepare($password_changes_query);
 $password_stmt->bind_param("s", $user_name);
@@ -532,7 +532,7 @@ $user = [
           </div>
           
           <!-- Statistics Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <!-- Total Activities Card -->
             <div class="stat-card bg-white text-black shadow-2xl p-5 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50">
               <div class="flex justify-between items-start">
@@ -561,19 +561,7 @@ $user = [
               </div>
             </div>
 
-            <!-- Password Changes Card -->
-            <div class="stat-card bg-white text-black shadow-2xl p-5 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50">
-              <div class="flex justify-between items-start">
-                <div>
-                  <p class="text-sm font-medium text-[#001f54] hover:drop-shadow-md transition-all">Password Changes</p>
-                  <h3 class="text-3xl font-bold mt-1"><?php echo $total_password_changes; ?></h3>
-                  <p class="text-xs text-gray-500 mt-1">Total updates</p>
-                </div>
-                <div class="p-3 rounded-lg bg-[#001f54] flex items-center justify-center transition-all duration-300 hover:bg-[#002b70]">
-                  <i class="fas fa-key text-2xl text-[#F7B32B]"></i>
-                </div>
-              </div>
-            </div>
+            
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -925,71 +913,108 @@ $user = [
                           </tr>
                         </thead>
                         <tbody>
-                          <?php foreach ($recent_activities as $activity): ?>
-                            <tr class="activity-item border-b border-gray-100 hover:bg-gray-50">
-                              <td class="py-4 px-4">
-                                <div class="font-medium text-gray-900">
-                                  <?php 
-                                    $activity_text = '';
-                                    if (isset($activity['activity'])) {
-                                      $activity_text = $activity['activity'];
-                                    } elseif (isset($activity['modules_cover'])) {
-                                      $activity_text = $activity['modules_cover'];
-                                    }
-                                    echo htmlspecialchars(substr($activity_text, 0, 100)) . (strlen($activity_text) > 100 ? '...' : '');
-                                  ?>
-                                </div>
-                                <?php if (isset($activity['employee_name'])): ?>
-                                  <div class="text-sm text-gray-500 mt-1">
-                                    <i data-lucide="user" class="w-3 h-3 inline mr-1"></i>
-                                    <?php echo htmlspecialchars($activity['employee_name']); ?>
-                                  </div>
-                                <?php endif; ?>
-                              </td>
-                              <td class="py-4 px-4">
-                                <?php if (isset($activity['action'])): ?>
-                                  <?php 
-                                    $badge_class = 'badge-info';
-                                    $action_lower = strtolower($activity['action']);
-                                    if (strpos($action_lower, 'login') !== false) $badge_class = 'badge-success';
-                                    elseif (strpos($action_lower, 'error') !== false || strpos($action_lower, 'fail') !== false) $badge_class = 'badge-error';
-                                    elseif (strpos($action_lower, 'create') !== false) $badge_class = 'badge-primary';
-                                    elseif (strpos($action_lower, 'update') !== false) $badge_class = 'badge-warning';
-                                    elseif (strpos($action_lower, 'delete') !== false) $badge_class = 'badge-error';
-                                  ?>
-                                  <span class="badge <?php echo $badge_class; ?>">
-                                    <?php echo htmlspecialchars($activity['action']); ?>
-                                  </span>
-                                <?php endif; ?>
-                              </td>
-                              <td class="py-4 px-4">
-                                <?php if (isset($activity['dept_name'])): ?>
-                                  <div class="text-gray-700">
-                                    <?php echo htmlspecialchars($activity['dept_name']); ?>
-                                  </div>
-                                <?php endif; ?>
-                              </td>
-                              <td class="py-4 px-4">
-                                <?php 
-                                  $date_str = '';
-                                  if (isset($activity['date'])) {
-                                    $date_str = $activity['date'];
-                                  } elseif (isset($activity['created_at'])) {
-                                    $date_str = $activity['created_at'];
-                                  }
-                                  if (!empty($date_str)) {
-                                    try {
-                                      $date = new DateTime($date_str);
-                                      echo '<div class="text-gray-700">' . $date->format('M j, Y') . '</div>';
-                                      echo '<div class="text-sm text-gray-500">' . $date->format('H:i:s') . '</div>';
-                                    } catch (Exception $e) {
-                                      echo htmlspecialchars($date_str);
-                                    }
-                                  }
-                                ?>
-                              </td>
-                            </tr>
-                          <?php endforeach; ?>
+                         <?php
+// First, get the current user's image for reference
+$current_user_image = '';
+if (!empty($user['image_url'])) {
+    $current_user_image = $user['image_url'];
+} elseif (!empty($user['profile_picture'])) {
+    $current_user_image = $user['profile_picture'];
+}
+?>
+
+<?php foreach ($recent_activities as $activity): ?>
+    <tr class="activity-item border-b border-gray-100 hover:bg-gray-50">
+        <td class="py-4 px-4">
+            <div class="flex items-center">
+                <!-- User Profile Image -->
+                <div class="flex-shrink-0 mr-3">
+                    <div class="w-10 h-10 rounded-full overflow-hidden bg-gray-200 border border-gray-300">
+                        <?php 
+                        // For profile page, all activities should be from the logged-in user
+                        // So we can use the current user's image
+                        $activity_user_name = $activity['employee_name'] ?? '';
+                        
+                        if (!empty($current_user_image)): 
+                        ?>
+                            <img src="Profile_images/<?php echo htmlspecialchars($current_user_image); ?>" 
+                                 alt="<?php echo htmlspecialchars($activity_user_name); ?>" 
+                                 class="w-full h-full object-cover"
+                                 onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OSI+VXNlcjwvdGV4dD48L3N2Zz4='">
+                        <?php else: ?>
+                            <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                                <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <!-- Activity Details -->
+                <div class="flex-1">
+                    <div class="font-medium text-gray-900 mb-1">
+                        <?php 
+                            $activity_text = '';
+                            if (isset($activity['activity'])) {
+                                $activity_text = $activity['activity'];
+                            } elseif (isset($activity['modules_cover'])) {
+                                $activity_text = $activity['modules_cover'];
+                            }
+                            echo htmlspecialchars(substr($activity_text, 0, 100)) . (strlen($activity_text) > 100 ? '...' : '');
+                        ?>
+                    </div>
+                    <?php if (isset($activity['employee_name'])): ?>
+                        <div class="text-sm text-gray-500 flex items-center">
+                            <i data-lucide="user" class="w-3 h-3 mr-1"></i>
+                            <?php echo htmlspecialchars($activity['employee_name']); ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </td>
+        <td class="py-4 px-4">
+            <?php if (isset($activity['action'])): ?>
+                <?php 
+                    $badge_class = 'badge-info';
+                    $action_lower = strtolower($activity['action']);
+                    if (strpos($action_lower, 'login') !== false) $badge_class = 'badge-success';
+                    elseif (strpos($action_lower, 'error') !== false || strpos($action_lower, 'fail') !== false) $badge_class = 'badge-error';
+                    elseif (strpos($action_lower, 'create') !== false) $badge_class = 'badge-primary';
+                    elseif (strpos($action_lower, 'update') !== false) $badge_class = 'badge-warning';
+                    elseif (strpos($action_lower, 'delete') !== false) $badge_class = 'badge-error';
+                ?>
+                <span class="badge <?php echo $badge_class; ?>">
+                    <?php echo htmlspecialchars($activity['action']); ?>
+                </span>
+            <?php endif; ?>
+        </td>
+        <td class="py-4 px-4">
+            <?php if (isset($activity['dept_name'])): ?>
+                <div class="text-gray-700">
+                    <?php echo htmlspecialchars($activity['dept_name']); ?>
+                </div>
+            <?php endif; ?>
+        </td>
+        <td class="py-4 px-4">
+            <?php 
+                $date_str = '';
+                if (isset($activity['date'])) {
+                    $date_str = $activity['date'];
+                } elseif (isset($activity['created_at'])) {
+                    $date_str = $activity['created_at'];
+                }
+                if (!empty($date_str)) {
+                    try {
+                        $date = new DateTime($date_str);
+                        echo '<div class="text-gray-700">' . $date->format('M j, Y') . '</div>';
+                        echo '<div class="text-sm text-gray-500">' . $date->format('H:i:s') . '</div>';
+                    } catch (Exception $e) {
+                        echo htmlspecialchars($date_str);
+                    }
+                }
+            ?>
+        </td>
+    </tr>
+<?php endforeach; ?>
                         </tbody>
                       </table>
                     </div>
@@ -1098,70 +1123,127 @@ $user = [
                           </tr>
                         </thead>
                         <tbody>
-                          <?php foreach ($recent_logins as $log): ?>
-                            <tr class="border-b border-gray-100 hover:bg-gray-50">
-                              <td class="py-4 px-4">
-                                <?php 
-                                  $badge_class = 'badge-success';
-                                  $status = $log['log_status'] ?? '';
-                                  if ($status === 'failed') $badge_class = 'badge-error';
-                                  elseif ($status === 'locked') $badge_class = 'badge-warning';
-                                ?>
-                                <span class="badge <?php echo $badge_class; ?>">
-                                  <?php echo ucfirst($status); ?>
-                                </span>
-                              </td>
-                              <td class="py-4 px-4">
-                                <?php 
-                                  $type_badge_class = 'badge-info';
-                                  $log_type = $log['log_type'] ?? '';
-                                  if ($log_type === 'password_change') $type_badge_class = 'badge-primary';
-                                  elseif ($log_type === 'logout') $type_badge_class = 'badge-warning';
-                                ?>
-                                <span class="badge <?php echo $type_badge_class; ?>">
-                                  <?php 
-                                    $type_text = str_replace('_', ' ', $log_type);
-                                    echo ucwords($type_text);
-                                  ?>
-                                </span>
-                              </td>
-                              <td class="py-4 px-4">
-                                <div class="font-medium">
-                                  <?php echo htmlspecialchars($log['attempt_count'] ?? '0'); ?>
-                                </div>
-                              </td>
-                              <td class="py-4 px-4">
-                                <?php if (!empty($log['failure_reason'])): ?>
-                                  <div class="text-gray-700" title="<?php echo htmlspecialchars($log['failure_reason']); ?>">
-                                    <?php 
-                                      $reason = htmlspecialchars($log['failure_reason']);
-                                      echo strlen($reason) > 50 ? substr($reason, 0, 50) . '...' : $reason;
-                                    ?>
-                                  </div>
-                                <?php elseif (!empty($log['cooldown'])): ?>
-                                  <div class="text-gray-500 text-sm">
-                                    Cooldown: <?php echo htmlspecialchars($log['cooldown']); ?>
-                                  </div>
-                                <?php else: ?>
-                                  <div class="text-gray-400 text-sm">-</div>
-                                <?php endif; ?>
-                              </td>
-                              <td class="py-4 px-4">
-                                <?php 
-                                  $date_str = $log['date'] ?? '';
-                                  if (!empty($date_str)) {
-                                    try {
-                                      $date = new DateTime($date_str);
-                                      echo '<div class="text-gray-700">' . $date->format('M j, Y') . '</div>';
-                                      echo '<div class="text-sm text-gray-500">' . $date->format('H:i:s') . '</div>';
-                                    } catch (Exception $e) {
-                                      echo htmlspecialchars($date_str);
-                                    }
-                                  }
-                                ?>
-                              </td>
-                            </tr>
-                          <?php endforeach; ?>
+                          <?php 
+// First, get the current user's image for reference
+$current_user_image = '';
+if (!empty($user['image_url'])) {
+    $current_user_image = $user['image_url'];
+} elseif (!empty($user['profile_picture'])) {
+    $current_user_image = $user['profile_picture'];
+}
+?>
+
+<?php foreach ($recent_logins as $log): ?>
+    <tr class="border-b border-gray-100 hover:bg-gray-50">
+        <td class="py-4 px-4">
+            <div class="flex items-center">
+                <!-- User Profile Image -->
+                <div class="flex-shrink-0 mr-3">
+                    <div class="w-10 h-10 rounded-full overflow-hidden bg-gray-200 border border-gray-300">
+                        <?php 
+                        // For profile page, all login activities should be from the logged-in user
+                        // So we can use the current user's image
+                        $user_name = $log['employee_name'] ?? $log['username'] ?? '';
+                        
+                        if (!empty($current_user_image)): 
+                        ?>
+                            <img src="Profile_images/<?php echo htmlspecialchars($current_user_image); ?>" 
+                                 alt="<?php echo htmlspecialchars($user_name); ?>" 
+                                 class="w-full h-full object-cover"
+                                 onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OSI+VXNlcjwvdGV4dD48L3N2Zz4='">
+                        <?php else: ?>
+                            <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                                <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <!-- User Details -->
+                <div class="flex-1">
+                    <div class="font-medium text-gray-900 mb-1">
+                        <?php 
+                            $user_display_name = $user_name;
+                            if (!empty($user_display_name)) {
+                                echo htmlspecialchars($user_display_name);
+                            } else {
+                                echo htmlspecialchars($log['username'] ?? 'User');
+                            }
+                        ?>
+                    </div>
+                    <?php if (!empty($log['username'])): ?>
+                        <div class="text-sm text-gray-500 flex items-center">
+                            <i data-lucide="user" class="w-3 h-3 mr-1"></i>
+                            <?php echo htmlspecialchars($log['username']); ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </td>
+        <td class="py-4 px-4">
+            <?php 
+                $badge_class = 'badge-success';
+                $status = $log['log_status'] ?? '';
+                if ($status === 'failed') $badge_class = 'badge-error';
+                elseif ($status === 'locked') $badge_class = 'badge-warning';
+                elseif (empty($status)) $badge_class = 'badge-secondary';
+            ?>
+            <span class="badge <?php echo $badge_class; ?>">
+                <?php echo ucfirst($status ?: 'unknown'); ?>
+            </span>
+        </td>
+        <td class="py-4 px-4">
+            <?php 
+                $type_badge_class = 'badge-info';
+                $log_type = $log['log_type'] ?? '';
+                if ($log_type === 'password_change') $type_badge_class = 'badge-primary';
+                elseif ($log_type === 'logout') $type_badge_class = 'badge-warning';
+                elseif (empty($log_type)) $type_badge_class = 'badge-secondary';
+            ?>
+            <span class="badge <?php echo $type_badge_class; ?>">
+                <?php 
+                    $type_text = str_replace('_', ' ', $log_type);
+                    echo ucwords($type_text ?: 'login activity');
+                ?>
+            </span>
+        </td>
+        <td class="py-4 px-4">
+            <div class="font-medium text-center">
+                <?php echo htmlspecialchars($log['attempt_count'] ?? '0'); ?>
+            </div>
+        </td>
+        <td class="py-4 px-4">
+            <?php if (!empty($log['failure_reason'])): ?>
+                <div class="text-gray-700" title="<?php echo htmlspecialchars($log['failure_reason']); ?>">
+                    <?php 
+                        $reason = htmlspecialchars($log['failure_reason']);
+                        echo strlen($reason) > 50 ? substr($reason, 0, 50) . '...' : $reason;
+                    ?>
+                </div>
+            <?php elseif (!empty($log['cooldown'])): ?>
+                <div class="text-gray-500 text-sm">
+                    Cooldown: <?php echo htmlspecialchars($log['cooldown']); ?>
+                </div>
+            <?php else: ?>
+                <div class="text-gray-400 text-sm">-</div>
+            <?php endif; ?>
+        </td>
+        <td class="py-4 px-4">
+            <?php 
+                $date_str = $log['date'] ?? '';
+                if (!empty($date_str)) {
+                    try {
+                        $date = new DateTime($date_str);
+                        echo '<div class="text-gray-700">' . $date->format('M j, Y') . '</div>';
+                        echo '<div class="text-sm text-gray-500">' . $date->format('H:i:s') . '</div>';
+                    } catch (Exception $e) {
+                        echo htmlspecialchars($date_str);
+                    }
+                }
+            ?>
+        </td>
+    </tr>
+<?php endforeach; ?>
                         </tbody>
                       </table>
                     </div>
