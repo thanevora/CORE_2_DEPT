@@ -155,565 +155,351 @@ $already_submitted = !empty($order_details['submitted_at']);
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rate Your Experience - Soliera Hotel & Restaurant</title>
     
+    <!-- Tailwind CSS & DaisyUI -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Custom Styles -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Poppins', sans-serif; }
         
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Poppins', sans-serif;
+        /* Custom gradient background */
+        .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
         }
         
-        .container {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            color: white;
-        }
-        
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-        
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-        
-        .card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-            margin-bottom: 30px;
-        }
-        
-        .card-header {
-            background: linear-gradient(135deg, #F7B32B 0%, #e6a117 100%);
-            padding: 25px;
-            color: white;
-            text-align: center;
-        }
-        
-        .card-header h2 {
-            font-size: 1.8rem;
-            margin-bottom: 5px;
-            font-weight: 600;
-        }
-        
-        .card-header p {
-            font-size: 1rem;
-            opacity: 0.9;
-        }
-        
-        .card-body {
-            padding: 30px;
-        }
-        
-        .order-info {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
-            border: 1px solid #e9ecef;
-        }
-        
-        .order-info h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-            border-bottom: 2px solid #F7B32B;
-            padding-bottom: 8px;
-        }
-        
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .info-item {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .info-label {
-            font-weight: 500;
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-        }
-        
-        .info-value {
-            font-weight: 600;
-            color: #333;
-            font-size: 1rem;
-        }
-        
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-        
-        .items-table th {
-            background: #e9ecef;
-            padding: 12px 15px;
-            text-align: left;
-            font-weight: 600;
-            color: #333;
-            border-bottom: 2px solid #dee2e6;
-        }
-        
-        .items-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #e9ecef;
-            color: #555;
-        }
-        
-        .items-table tr:hover {
-            background: #f8f9fa;
-        }
-        
-        .rating-section {
-            text-align: center;
-            margin: 40px 0;
-        }
-        
-        .rating-title {
-            font-size: 1.5rem;
-            color: #333;
-            margin-bottom: 20px;
-            font-weight: 600;
-        }
-        
-        .rating-stars {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 20px;
-            direction: rtl;
-        }
-        
-        .star {
-            font-size: 3rem;
-            color: #ddd;
-            cursor: pointer;
+        /* Rating stars colors */
+        .rating-stars .star {
+            color: #d1d5db; /* gray-300 */
             transition: all 0.3s ease;
         }
-        
-        .star:hover,
-        .star:hover ~ .star,
-        .star.selected,
-        .star.selected ~ .star {
-            color: #FFD700;
+        .rating-stars .star:hover,
+        .rating-stars .star.selected {
+            color: #fbbf24; /* amber-400 */
+        }
+        .rating-stars .star:hover ~ .star,
+        .rating-stars .star.selected ~ .star {
+            color: #fbbf24;
         }
         
-        .star-label {
-            font-size: 1.1rem;
-            color: #666;
-            margin-top: 10px;
-            min-height: 25px;
+        /* Custom animation for success */
+        @keyframes checkmark {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
         }
         
-        .form-group {
-            margin-bottom: 25px;
+        .animate-checkmark {
+            animation: checkmark 0.6s ease-out;
         }
         
-        .form-label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #333;
-            font-size: 1.1rem;
-        }
-        
-        .form-control {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            font-family: 'Poppins', sans-serif;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            resize: vertical;
-        }
-        
-        .form-control:focus {
-            outline: none;
-            border-color: #F7B32B;
-            box-shadow: 0 0 0 3px rgba(247, 179, 43, 0.1);
-        }
-        
-        .char-count {
-            text-align: right;
-            font-size: 0.85rem;
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .submit-btn {
-            display: block;
-            width: 100%;
-            padding: 18px;
-            background: linear-gradient(135deg, #F7B32B 0%, #e6a117 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 30px;
-        }
-        
-        .submit-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(247, 179, 43, 0.3);
-        }
-        
-        .submit-btn:active {
-            transform: translateY(-1px);
-        }
-        
-        .submit-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        
-        .success-message {
-            text-align: center;
-            padding: 50px 30px;
-        }
-        
-        .success-icon {
-            font-size: 5rem;
-            color: #28a745;
-            margin-bottom: 20px;
-        }
-        
-        .success-title {
-            font-size: 2rem;
-            color: #333;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-        
-        .success-text {
-            font-size: 1.1rem;
-            color: #666;
-            margin-bottom: 30px;
-        }
-        
-        .thank-you-note {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 15px;
-            padding: 25px;
-            margin-top: 30px;
-            border: 2px solid #F7B32B;
-        }
-        
-        .thank-you-note h4 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.4rem;
-        }
-        
-        .thank-you-note p {
-            color: #555;
-            line-height: 1.6;
-        }
-        
-        .footer {
-            text-align: center;
-            color: white;
-            margin-top: 40px;
-            opacity: 0.8;
-            font-size: 0.9rem;
-        }
-        
-        .restaurant-logo {
-            max-width: 150px;
-            margin: 0 auto 20px;
-            display: block;
-        }
-        
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2rem;
-            }
-            
-            .card {
-                border-radius: 15px;
-            }
-            
-            .card-body {
-                padding: 20px;
-            }
-            
-            .star {
-                font-size: 2.5rem;
-            }
-            
-            .info-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .items-table {
-                display: block;
-                overflow-x: auto;
-            }
-        }
-        
-        .rating-emoji {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
+        /* Character counter colors */
+        .char-count.warning { color: #f59e0b; }
+        .char-count.danger { color: #ef4444; }
     </style>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'poppins': ['Poppins', 'sans-serif'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s infinite',
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container">
+<body class="gradient-bg min-h-screen flex flex-col items-center justify-center p-4 md:p-6">
+    <div class="container max-w-4xl mx-auto">
         <!-- Restaurant Logo -->
-        <img src="../../images/soliera_S.png" alt="Soliera Hotel & Restaurant" class="restaurant-logo">
+        <div class="flex justify-center mb-8">
+            <img src="../../images/soliera_S.png" alt="Soliera Hotel & Restaurant" class="w-40 h-40 md:w-48 md:h-48 object-contain">
+        </div>
         
         <!-- Header -->
-        <div class="header">
-            <h1>Share Your Experience</h1>
-            <p>Your feedback helps us improve our service</p>
+        <div class="text-center text-white mb-10">
+            <h1 class="text-3xl md:text-4xl font-bold mb-3">Share Your Experience</h1>
+            <p class="text-lg opacity-90">Your feedback helps us improve our service</p>
         </div>
         
         <!-- Main Card -->
-        <div class="card">
-            <div class="card-header">
-                <h2>Order #<?php echo htmlspecialchars($order_code); ?></h2>
-                <p>Thank you for dining with us!</p>
+        <div class="card bg-base-100 shadow-2xl rounded-2xl overflow-hidden mb-8">
+            <!-- Card Header -->
+            <div class="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-6 md:p-8 text-center">
+                <h2 class="text-2xl md:text-3xl font-bold mb-2">Order #<?php echo htmlspecialchars($order_code); ?></h2>
+                <p class="text-lg">Thank you for dining with us!</p>
             </div>
             
-            <div class="card-body">
+            <!-- Card Body -->
+            <div class="p-6 md:p-8">
                 <!-- Order Information -->
-                <div class="order-info">
-                    <h3>Your Order Details</h3>
-                    <div class="info-grid">
-                        <div class="info-item">
-                            <span class="info-label">Customer Name</span>
-                            <span class="info-value"><?php echo htmlspecialchars($order_details['customer_name'] ?? 'Guest'); ?></span>
+                <div class="bg-base-200 rounded-xl p-5 mb-8 border border-base-300">
+                    <h3 class="text-xl font-bold mb-4 pb-2 border-b-2 border-amber-500">Your Order Details</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="space-y-1">
+                            <div class="text-sm font-medium text-base-content/70 flex items-center gap-2">
+                                <i data-lucide="user" class="w-4 h-4"></i>
+                                Customer Name
+                            </div>
+                            <div class="font-semibold text-lg"><?php echo htmlspecialchars($order_details['customer_name'] ?? 'Guest'); ?></div>
                         </div>
-                        <div class="info-item">
-                            <span class="info-label">Table Number</span>
-                            <span class="info-value"><?php echo htmlspecialchars($order_details['table_name'] ?? 'N/A'); ?></span>
+                        
+                        <div class="space-y-1">
+                            <div class="text-sm font-medium text-base-content/70 flex items-center gap-2">
+                                <i data-lucide="table" class="w-4 h-4"></i>
+                                Table Number
+                            </div>
+                            <div class="font-semibold text-lg"><?php echo htmlspecialchars($order_details['table_name'] ?? 'N/A'); ?></div>
                         </div>
-                        <div class="info-item">
-                            <span class="info-label">Order Date</span>
-                            <span class="info-value"><?php echo date('F j, Y', strtotime($order_details['created_at'] ?? 'now')); ?></span>
+                        
+                        <div class="space-y-1">
+                            <div class="text-sm font-medium text-base-content/70 flex items-center gap-2">
+                                <i data-lucide="calendar" class="w-4 h-4"></i>
+                                Order Date
+                            </div>
+                            <div class="font-semibold text-lg"><?php echo date('F j, Y', strtotime($order_details['created_at'] ?? 'now')); ?></div>
                         </div>
                     </div>
                     
                     <?php if (!empty($order_items)): ?>
-                    <h3 style="margin-top: 25px;">Order Items</h3>
-                    <table class="items-table">
-                        <thead>
-                            <tr>
-                                <th>Item</th>
-                                <th>Quantity</th>
-                                <th>Price</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($order_items as $item): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($item['name'] ?? $item['item_name'] ?? 'Item'); ?></td>
-                                <td><?php echo intval($item['quantity'] ?? $item['qty'] ?? 1); ?></td>
-                                <td>₱<?php echo number_format(floatval($item['price'] ?? $item['unit_price'] ?? 0), 2); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <div class="mt-6">
+                        <h4 class="text-lg font-bold mb-3">Order Items</h4>
+                        <div class="overflow-x-auto">
+                            <table class="table table-zebra w-full">
+                                <thead>
+                                    <tr class="bg-base-300">
+                                        <th class="font-bold">Item</th>
+                                        <th class="font-bold">Quantity</th>
+                                        <th class="font-bold">Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($order_items as $item): ?>
+                                    <tr>
+                                        <td class="font-medium"><?php echo htmlspecialchars($item['name'] ?? $item['item_name'] ?? 'Item'); ?></td>
+                                        <td><?php echo intval($item['quantity'] ?? $item['qty'] ?? 1); ?></td>
+                                        <td class="font-bold">₱<?php echo number_format(floatval($item['price'] ?? $item['unit_price'] ?? 0), 2); ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                     <?php endif; ?>
                 </div>
                 
                 <?php if ($submission_success): ?>
                 <!-- Success Message -->
-                <div class="success-message">
-                    <div class="success-icon">
-                        <i class="fas fa-check-circle"></i>
+                <div class="text-center py-8">
+                    <div class="inline-flex items-center justify-center w-24 h-24 bg-green-100 text-green-600 rounded-full mb-6 animate-checkmark">
+                        <i data-lucide="check-circle" class="w-16 h-16"></i>
                     </div>
-                    <h3 class="success-title">Thank You for Your Feedback!</h3>
-                    <p class="success-text">Your review has been successfully submitted. We appreciate you taking the time to share your experience with us.</p>
+                    <h3 class="text-2xl font-bold mb-4">Thank You for Your Feedback!</h3>
+                    <p class="text-base-content/70 mb-8 max-w-2xl mx-auto">
+                        Your review has been successfully submitted. We appreciate you taking the time to share your experience with us.
+                    </p>
                     
-                    <div class="thank-you-note">
-                        <h4>Your Feedback Matters</h4>
-                        <p>We value every review as it helps us understand what we're doing well and where we can improve. Our team will review your feedback and use it to enhance our service for future guests.</p>
+                    <div class="bg-gradient-to-r from-base-200 to-base-300 rounded-xl p-6 mb-8 border-2 border-amber-500">
+                        <h4 class="text-xl font-bold mb-3 flex items-center gap-2">
+                            <i data-lucide="award" class="w-6 h-6"></i>
+                            Your Feedback Matters
+                        </h4>
+                        <p class="text-base-content/80">
+                            We value every review as it helps us understand what we're doing well and where we can improve. 
+                            Our team will review your feedback and use it to enhance our service for future guests.
+                        </p>
                     </div>
                     
-                    <button onclick="window.location.href='<?php echo $_SERVER['HTTP_REFERER'] ?? '/'; ?>'" class="submit-btn" style="margin-top: 30px;">
-                        <i class="fas fa-home"></i> Return to Home
+                    <button onclick="window.location.href='<?php echo $_SERVER['HTTP_REFERER'] ?? '/'; ?>'" 
+                            class="btn btn-primary btn-lg w-full max-w-xs">
+                        <i data-lucide="home" class="w-5 h-5"></i>
+                        Return to Home
                     </button>
                 </div>
                 
                 <?php elseif ($already_submitted): ?>
                 <!-- Already Submitted -->
-                <div class="success-message">
-                    <div class="success-icon">
-                        <i class="fas fa-check-circle"></i>
+                <div class="text-center py-8">
+                    <div class="inline-flex items-center justify-center w-24 h-24 bg-blue-100 text-blue-600 rounded-full mb-6">
+                        <i data-lucide="file-check" class="w-16 h-16"></i>
                     </div>
-                    <h3 class="success-title">Feedback Already Submitted</h3>
-                    <p class="success-text">Thank you! You have already submitted your feedback for this order.</p>
+                    <h3 class="text-2xl font-bold mb-4">Feedback Already Submitted</h3>
+                    <p class="text-base-content/70 mb-8">Thank you! You have already submitted your feedback for this order.</p>
                     
-                    <div class="thank-you-note">
-                        <h4>Rating: <?php echo $order_details['rating'] ?? 0; ?> stars</h4>
-                        <p><strong>Review:</strong> <?php echo nl2br(htmlspecialchars($order_details['review_text'] ?? 'No review provided')); ?></p>
-                        <?php if (!empty($order_details['feedback'])): ?>
-                        <p style="margin-top: 15px;"><strong>Additional Feedback:</strong> <?php echo nl2br(htmlspecialchars($order_details['feedback'])); ?></p>
-                        <?php endif; ?>
-                        <p style="margin-top: 15px; font-size: 0.9rem; color: #777;">
-                            Submitted on: <?php echo date('F j, Y \a\t g:i A', strtotime($order_details['submitted_at'])); ?>
-                        </p>
+                    <div class="bg-gradient-to-r from-base-200 to-base-300 rounded-xl p-6 mb-8 border-2 border-amber-500">
+                        <div class="flex items-center gap-2 mb-4">
+                            <div class="rating rating-lg rating-half">
+                                <?php for ($i = 1; $i <= 5; $i++): ?>
+                                    <input type="radio" 
+                                           name="rating-display" 
+                                           class="mask mask-star-2 bg-amber-500" 
+                                           <?php echo ($i <= ($order_details['rating'] ?? 0)) ? 'checked' : 'disabled'; ?> />
+                                <?php endfor; ?>
+                            </div>
+                            <span class="text-xl font-bold"><?php echo $order_details['rating'] ?? 0; ?> stars</span>
+                        </div>
+                        
+                        <div class="text-left space-y-4">
+                            <div>
+                                <h5 class="font-bold mb-2 flex items-center gap-2">
+                                    <i data-lucide="message-square" class="w-5 h-5"></i>
+                                    Your Review:
+                                </h5>
+                                <p class="text-base-content/80 bg-base-100 p-4 rounded-lg">
+                                    <?php echo nl2br(htmlspecialchars($order_details['review_text'] ?? 'No review provided')); ?>
+                                </p>
+                            </div>
+                            
+                            <?php if (!empty($order_details['feedback'])): ?>
+                            <div>
+                                <h5 class="font-bold mb-2 flex items-center gap-2">
+                                    <i data-lucide="lightbulb" class="w-5 h-5"></i>
+                                    Additional Feedback:
+                                </h5>
+                                <p class="text-base-content/80 bg-base-100 p-4 rounded-lg">
+                                    <?php echo nl2br(htmlspecialchars($order_details['feedback'])); ?>
+                                </p>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <div class="text-sm text-base-content/60 pt-4 border-t border-base-300">
+                                <i data-lucide="clock" class="w-4 h-4 inline mr-2"></i>
+                                Submitted on: <?php echo date('F j, Y \a\t g:i A', strtotime($order_details['submitted_at'])); ?>
+                            </div>
+                        </div>
                     </div>
                     
-                    <button onclick="window.location.href='<?php echo $_SERVER['HTTP_REFERER'] ?? '/'; ?>'" class="submit-btn" style="margin-top: 30px;">
-                        <i class="fas fa-home"></i> Return to Home
+                    <button onclick="window.location.href='<?php echo $_SERVER['HTTP_REFERER'] ?? '/'; ?>'" 
+                            class="btn btn-primary btn-lg w-full max-w-xs">
+                        <i data-lucide="home" class="w-5 h-5"></i>
+                        Return to Home
                     </button>
                 </div>
                 
                 <?php else: ?>
                 <!-- Feedback Form -->
                 <?php if ($submission_error): ?>
-                <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
-                    <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($submission_error); ?>
+                <div class="alert alert-error mb-6">
+                    <i data-lucide="alert-circle" class="w-6 h-6"></i>
+                    <span><?php echo htmlspecialchars($submission_error); ?></span>
                 </div>
                 <?php endif; ?>
                 
-                <form id="feedbackForm" method="POST" action="">
+                <form id="feedbackForm" method="POST" action="" class="space-y-8">
                     <!-- Rating Section -->
-                    <div class="rating-section">
-                        <h3 class="rating-title">How would you rate your experience?</h3>
+                    <div class="text-center">
+                        <h3 class="text-2xl font-bold mb-6">How would you rate your experience?</h3>
                         
-                        <div class="rating-stars">
-                            <input type="radio" id="star5" name="rating" value="5" style="display: none;" <?php echo ($rating == 5) ? 'checked' : ''; ?>>
-                            <label for="star5" class="star" data-value="5" onclick="setRating(5)">
-                                <i class="fas fa-star"></i>
-                            </label>
-                            
-                            <input type="radio" id="star4" name="rating" value="4" style="display: none;" <?php echo ($rating == 4) ? 'checked' : ''; ?>>
-                            <label for="star4" class="star" data-value="4" onclick="setRating(4)">
-                                <i class="fas fa-star"></i>
-                            </label>
-                            
-                            <input type="radio" id="star3" name="rating" value="3" style="display: none;" <?php echo ($rating == 3) ? 'checked' : ''; ?>>
-                            <label for="star3" class="star" data-value="3" onclick="setRating(3)">
-                                <i class="fas fa-star"></i>
-                            </label>
-                            
-                            <input type="radio" id="star2" name="rating" value="2" style="display: none;" <?php echo ($rating == 2) ? 'checked' : ''; ?>>
-                            <label for="star2" class="star" data-value="2" onclick="setRating(2)">
-                                <i class="fas fa-star"></i>
-                            </label>
-                            
-                            <input type="radio" id="star1" name="rating" value="1" style="display: none;" <?php echo ($rating == 1) ? 'checked' : ''; ?>>
-                            <label for="star1" class="star" data-value="1" onclick="setRating(1)">
-                                <i class="fas fa-star"></i>
-                            </label>
+                        <div class="rating-stars flex justify-center gap-2 mb-4" style="direction: rtl;">
+                            <?php for ($i = 5; $i >= 1; $i--): ?>
+                                <input type="radio" 
+                                       id="star<?php echo $i; ?>" 
+                                       name="rating" 
+                                       value="<?php echo $i; ?>" 
+                                       class="hidden" 
+                                       <?php echo ($rating == $i) ? 'checked' : ''; ?> />
+                                <label for="star<?php echo $i; ?>" 
+                                       class="star cursor-pointer p-1" 
+                                       data-value="<?php echo $i; ?>" 
+                                       onclick="setRating(<?php echo $i; ?>)">
+                                    <i data-lucide="star" class="w-12 h-12 md:w-14 md:h-14 <?php echo ($rating >= $i) ? 'fill-current' : ''; ?>"></i>
+                                </label>
+                            <?php endfor; ?>
                         </div>
                         
-                        <div class="star-label" id="ratingLabel">
-                            <?php
-                            $labels = [
-                                1 => "Poor - Very Dissatisfied",
-                                2 => "Fair - Needs Improvement",
-                                3 => "Good - Met Expectations",
-                                4 => "Very Good - Exceeded Expectations",
-                                5 => "Excellent - Outstanding Experience"
-                            ];
-                            echo $rating ? $labels[$rating] : "Tap a star to rate";
-                            ?>
-                        </div>
-                        
-                        <div class="rating-emoji" id="ratingEmoji">
-                            <?php
-                            $emojis = [
-                                1 => "😞",
-                                2 => "😐",
-                                3 => "🙂",
-                                4 => "😊",
-                                5 => "🤩"
-                            ];
-                            echo $rating ? $emojis[$rating] : "⭐";
-                            ?>
+                        <div class="mb-2">
+                            <div class="text-4xl mb-2" id="ratingEmoji">
+                                <?php
+                                $emojis = [
+                                    1 => "😞",
+                                    2 => "😐",
+                                    3 => "🙂",
+                                    4 => "😊",
+                                    5 => "🤩"
+                                ];
+                                echo $rating ? $emojis[$rating] : "⭐";
+                                ?>
+                            </div>
+                            <div class="text-lg font-medium min-h-[28px]" id="ratingLabel">
+                                <?php
+                                $labels = [
+                                    1 => "Poor - Very Dissatisfied",
+                                    2 => "Fair - Needs Improvement",
+                                    3 => "Good - Met Expectations",
+                                    4 => "Very Good - Exceeded Expectations",
+                                    5 => "Excellent - Outstanding Experience"
+                                ];
+                                echo $rating ? $labels[$rating] : "Tap a star to rate";
+                                ?>
                         </div>
                     </div>
                     
                     <!-- Review Text -->
-                    <div class="form-group">
-                        <label for="review_text" class="form-label">
-                            <i class="fas fa-comment"></i> Your Review
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text text-lg font-semibold flex items-center gap-2">
+                                <i data-lucide="message-square" class="w-5 h-5"></i>
+                                Your Review
+                            </span>
                         </label>
                         <textarea 
                             id="review_text" 
                             name="review_text" 
-                            class="form-control" 
-                            rows="4" 
+                            class="textarea textarea-bordered h-32 text-lg" 
                             placeholder="Tell us about your experience... What did you like? What could be improved?"
                             maxlength="500"
                             oninput="updateCharCount(this, 'reviewCount')"
                         ><?php echo htmlspecialchars($review_text); ?></textarea>
-                        <div class="char-count">
-                            <span id="reviewCount">0</span>/500 characters
+                        <div class="label">
+                            <span class="label-text-alt"></span>
+                            <span class="label-text-alt char-count" id="reviewCount">0/500</span>
                         </div>
                     </div>
                     
                     <!-- Additional Feedback -->
-                    <div class="form-group">
-                        <label for="feedback" class="form-label">
-                            <i class="fas fa-lightbulb"></i> Additional Feedback (Optional)
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text text-lg font-semibold flex items-center gap-2">
+                                <i data-lucide="lightbulb" class="w-5 h-5"></i>
+                                Additional Feedback (Optional)
+                            </span>
                         </label>
                         <textarea 
                             id="feedback" 
                             name="feedback" 
-                            class="form-control" 
-                            rows="3" 
+                            class="textarea textarea-bordered h-24 text-lg" 
                             placeholder="Any additional comments, suggestions, or feedback..."
                             maxlength="1000"
                             oninput="updateCharCount(this, 'feedbackCount')"
                         ><?php echo htmlspecialchars($feedback); ?></textarea>
-                        <div class="char-count">
-                            <span id="feedbackCount">0</span>/1000 characters
+                        <div class="label">
+                            <span class="label-text-alt"></span>
+                            <span class="label-text-alt char-count" id="feedbackCount">0/1000</span>
                         </div>
                     </div>
                     
                     <!-- Submit Button -->
-                    <button type="submit" class="submit-btn" id="submitBtn">
-                        <i class="fas fa-paper-plane"></i> Submit Your Feedback
+                    <button type="submit" class="btn btn-primary btn-lg w-full text-lg h-16" id="submitBtn">
+                        <i data-lucide="send" class="w-6 h-6"></i>
+                        Submit Your Feedback
                     </button>
                 </form>
                 <?php endif; ?>
@@ -721,13 +507,16 @@ $already_submitted = !empty($order_details['submitted_at']);
         </div>
         
         <!-- Footer -->
-        <div class="footer">
-            <p>Soliera Hotel & Restaurant © <?php echo date('Y'); ?>. All rights reserved.</p>
-            <p>Thank you for helping us improve our service!</p>
+        <div class="text-center text-white opacity-80 mt-8 space-y-2">
+            <p class="text-sm md:text-base">Soliera Hotel & Restaurant © <?php echo date('Y'); ?>. All rights reserved.</p>
+            <p class="text-sm">Thank you for helping us improve our service!</p>
         </div>
     </div>
     
     <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
         // Initialize character counts
         document.addEventListener('DOMContentLoaded', function() {
             updateCharCount(document.getElementById('review_text'), 'reviewCount');
@@ -737,6 +526,7 @@ $already_submitted = !empty($order_details['submitted_at']);
             let rating = <?php echo $rating; ?>;
             if (rating > 0) {
                 highlightStars(rating);
+                document.getElementById('submitBtn').disabled = false;
             }
         });
         
@@ -768,7 +558,7 @@ $already_submitted = !empty($order_details['submitted_at']);
             document.getElementById('ratingLabel').textContent = labels[value];
             document.getElementById('ratingEmoji').textContent = emojis[value];
             
-            // Enable submit button if rating is selected
+            // Enable submit button
             document.getElementById('submitBtn').disabled = false;
         }
         
@@ -776,10 +566,14 @@ $already_submitted = !empty($order_details['submitted_at']);
             const stars = document.querySelectorAll('.star');
             stars.forEach(star => {
                 const starValue = parseInt(star.getAttribute('data-value'));
+                const icon = star.querySelector('i');
+                
                 if (starValue <= value) {
                     star.classList.add('selected');
+                    icon.classList.add('fill-current');
                 } else {
                     star.classList.remove('selected');
+                    icon.classList.remove('fill-current');
                 }
             });
         }
@@ -788,69 +582,21 @@ $already_submitted = !empty($order_details['submitted_at']);
         function updateCharCount(textarea, countId) {
             const count = textarea.value.length;
             const maxLength = parseInt(textarea.getAttribute('maxlength'));
-            document.getElementById(countId).textContent = count;
-            
-            // Change color when approaching limit
             const countElement = document.getElementById(countId);
+            
+            countElement.textContent = `${count}/${maxLength}`;
+            
+            // Update color based on usage
+            countElement.classList.remove('warning', 'danger', 'text-base-content');
+            
             if (count > maxLength * 0.9) {
-                countElement.style.color = '#dc3545';
+                countElement.classList.add('danger');
             } else if (count > maxLength * 0.75) {
-                countElement.style.color = '#ffc107';
+                countElement.classList.add('warning');
             } else {
-                countElement.style.color = '#666';
+                countElement.classList.add('text-base-content');
             }
         }
-        
-        // Form validation
-        document.getElementById('feedbackForm').addEventListener('submit', function(e) {
-            const rating = document.querySelector('input[name="rating"]:checked');
-            const reviewText = document.getElementById('review_text').value.trim();
-            
-            if (!rating) {
-                e.preventDefault();
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Rating Required',
-                    text: 'Please select a rating before submitting your feedback.',
-                    confirmButtonColor: '#F7B32B'
-                });
-                return false;
-            }
-            
-            if (reviewText.length < 10) {
-                e.preventDefault();
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Review Too Short',
-                    text: 'Please provide a more detailed review (at least 10 characters).',
-                    confirmButtonColor: '#F7B32B'
-                });
-                return false;
-            }
-            
-            // Show confirmation
-            e.preventDefault();
-            Swal.fire({
-                title: 'Submit Your Feedback?',
-                text: 'Are you sure you want to submit your review?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#F7B32B',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, Submit',
-                cancelButtonText: 'Cancel'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Disable button and show loading
-                    const submitBtn = document.getElementById('submitBtn');
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
-                    
-                    // Submit the form
-                    e.target.submit();
-                }
-            });
-        });
         
         // Hover effect for stars
         document.querySelectorAll('.star').forEach(star => {
@@ -885,9 +631,72 @@ $already_submitted = !empty($order_details['submitted_at']);
                     setRating(parseInt(rating.value));
                 } else {
                     // Reset to default
-                    document.querySelectorAll('.star').forEach(s => s.classList.remove('selected'));
+                    document.querySelectorAll('.star').forEach(s => {
+                        s.classList.remove('selected');
+                        s.querySelector('i').classList.remove('fill-current');
+                    });
                     document.getElementById('ratingLabel').textContent = "Tap a star to rate";
                     document.getElementById('ratingEmoji').textContent = "⭐";
+                }
+            });
+        });
+        
+        // Form validation
+        document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+            const rating = document.querySelector('input[name="rating"]:checked');
+            const reviewText = document.getElementById('review_text').value.trim();
+            
+            if (!rating) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Rating Required',
+                    text: 'Please select a rating before submitting your feedback.',
+                    confirmButtonColor: '#f59e0b'
+                });
+                return false;
+            }
+            
+            if (reviewText.length < 10) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Review Too Short',
+                    text: 'Please provide a more detailed review (at least 10 characters).',
+                    confirmButtonColor: '#f59e0b'
+                });
+                return false;
+            }
+            
+            // Show confirmation
+            e.preventDefault();
+            Swal.fire({
+                title: 'Submit Your Feedback?',
+                text: 'Are you sure you want to submit your review?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, Submit',
+                cancelButtonText: 'Cancel',
+                showClass: {
+                    popup: 'animate__animated animate__fadeInDown'
+                },
+                hideClass: {
+                    popup: 'animate__animated animate__fadeOutUp'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Disable button and show loading
+                    const submitBtn = document.getElementById('submitBtn');
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = `
+                        <span class="loading loading-spinner loading-md"></span>
+                        Submitting...
+                    `;
+                    
+                    // Submit the form
+                    e.target.submit();
                 }
             });
         });
