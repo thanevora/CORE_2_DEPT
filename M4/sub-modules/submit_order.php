@@ -29,6 +29,12 @@ $conn_core_audit = $connections["rest_core_2_usm"] ?? respond('error', 'Connecti
 $conn_reviews = $connections["rest_m10_comments_review"] ?? respond('error', 'Connection not found for Reviews');
 
 // =======================
+// HOTEL API CONFIGURATION
+// =======================
+$hotel_api_token = "uX8B1QqYJt7XqTf0sM3tKAh5nCjEjR1Xlqk4F8ZdD1mHq5V9y7oUj1QhUzPg5s";
+$hotel_api_url = "https://hotel.soliera-hotel-restaurant.com/api/bookedrooms";
+
+// =======================
 // Collect request data - SUPPORT MULTIPLE METHODS
 // =======================
 $input_data = [];
@@ -63,6 +69,7 @@ $notes          = $input_data['notes'] ?? $input_data['special_instructions'] ??
 $placed_by      = $input_data['placed_by'] ?? $input_data['placedBy'] ?? '';
 $served_by      = $input_data['served_by'] ?? $input_data['servedBy'] ?? '';
 $review_link    = $input_data['review_link'] ?? $input_data['feedback_url'] ?? 'https://restaurant.soliera-hotel-restaurant.com/';
+$room_number    = $input_data['room_number'] ?? $input_data['room_id'] ?? null; // Add room number from frontend
 
 // Handle order items - could be in different formats
 $orders_json = '';
@@ -81,7 +88,7 @@ if (isset($input_data['order_items_json'])) {
 $created_at     = date("Y-m-d H:i:s");
 
 // Debug logging
-error_log("Extracted values - order_code: $order_code, table_id: $table_id, customer_name: $customer_name");
+error_log("Extracted values - order_code: $order_code, table_id: $table_id, customer_name: $customer_name, room_number: $room_number");
 error_log("Payment details - amount_received: $amount_received, change_amount: $change_amount, MOP: $mop");
 
 // Validate required fields - with better error messages
@@ -205,6 +212,111 @@ if ($current_table_status !== 'Available' && $current_table_status !== 'Reserved
     respond('error', "Table '{$table_name}' is currently {$current_table_status}. Cannot place order.");
 }
 
+// =======================
+// CHECK HOTEL GUEST STATUS
+// =======================
+$hotel_guest_info = null;
+$room_number_display = null;
+$is_hotel_guest = false;
+$reservation_id = null; // Initialize reservation_id variable
+
+// Check if we have a room number from the frontend
+if (!empty($room_number)) {
+    try {
+        // Fetch hotel guest data from API
+        $ch = curl_init($hotel_api_url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                "Authorization: Bearer $hotel_api_token",
+                "Accept: application/json",
+                "Content-Type: application/json"
+            ]
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode == 200) {
+            $hotel_data = json_decode($response, true);
+            if (isset($hotel_data['success']) && $hotel_data['success'] === true && isset($hotel_data['data'])) {
+                foreach ($hotel_data['data'] as $reservation) {
+                    // Check if roomID matches the provided room number
+                    if (isset($reservation['roomID']) && $reservation['roomID'] == $room_number) {
+                        $hotel_guest_info = $reservation;
+                        
+                        // Check if guest is checked in
+                        if (isset($reservation['reservation_bookingstatus']) && 
+                            strtolower($reservation['reservation_bookingstatus']) == 'checked in') {
+                            $is_hotel_guest = true;
+                            $room_number_display = $reservation['roomID'];
+                            $reservation_id = $reservation['reservationID'] ?? $reservation['id'] ?? null;
+                            
+                            // Verify customer name matches (optional but good practice)
+                            $hotel_guest_name = $reservation['guestname'] ?? '';
+                            if (!empty($hotel_guest_name) && strtolower($hotel_guest_name) !== strtolower($customer_name)) {
+                                error_log("Customer name mismatch: Frontend='$customer_name', Hotel='$hotel_guest_name'");
+                                // You might want to update the customer name or log a warning
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        } else {
+            error_log("Hotel API Error: HTTP Code $httpCode");
+        }
+    } catch (Exception $e) {
+        error_log("Hotel API call failed: " . $e->getMessage());
+    }
+}
+
+// If no room number provided, but customer name matches a hotel guest, try to find them
+if (!$is_hotel_guest && !empty($customer_name) && $customer_name !== 'Walk-in Customer') {
+    try {
+        $ch = curl_init($hotel_api_url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                "Authorization: Bearer $hotel_api_token",
+                "Accept: application/json",
+                "Content-Type: application/json"
+            ]
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode == 200) {
+            $hotel_data = json_decode($response, true);
+            if (isset($hotel_data['success']) && $hotel_data['success'] === true && isset($hotel_data['data'])) {
+                foreach ($hotel_data['data'] as $reservation) {
+                    // Check if guest name matches and they're checked in
+                    if (isset($reservation['guestname']) && 
+                        strtolower($reservation['guestname']) == strtolower($customer_name) &&
+                        isset($reservation['reservation_bookingstatus']) && 
+                        strtolower($reservation['reservation_bookingstatus']) == 'checked in') {
+                        $hotel_guest_info = $reservation;
+                        $is_hotel_guest = true;
+                        $room_number_display = $reservation['roomID'] ?? null;
+                        $reservation_id = $reservation['reservationID'] ?? $reservation['id'] ?? null;
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Hotel API call for customer name failed: " . $e->getMessage());
+    }
+}
+
+// Log hotel guest status
+if ($is_hotel_guest) {
+    error_log("Hotel guest detected: {$customer_name}, Room: {$room_number_display}, Reservation ID: {$reservation_id}");
+} else {
+    error_log("Customer is not a hotel guest or room not found");
+}
+
 // Get employee info for placed_by and served_by
 $employee_id   = $_SESSION['employee_id'] ?? ($_SESSION['User_ID'] ?? 0);
 $employee_name = $_SESSION['employee_name'] ?? ($_SESSION['Name'] ?? '');
@@ -239,31 +351,76 @@ try {
     $stmt_update_table->close();
 
     // =======================
-    // Step 2: Insert into POS.orders with amount and change
+    // Step 2: Insert into POS.orders with reservation_id if applicable
     // =======================
     $status_pos = "Pending";
     
-    $sql_pos = "INSERT INTO orders 
-        (order_code, table_id, customer_name, order_type, status, total_amount, amount_received, change_amount, MOP, placed_by, served_by, notes, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    // Add room number to notes if it's a hotel guest
+    if ($is_hotel_guest && !empty($room_number_display)) {
+        $hotel_notes = "Hotel Guest - Room: {$room_number_display}";
+        if (!empty($notes)) {
+            $notes = $hotel_notes . " | " . $notes;
+        } else {
+            $notes = $hotel_notes;
+        }
+    }
     
-    $stmt_pos = $conn_pos->prepare($sql_pos);
-    $stmt_pos->bind_param(
-        "sisssddssssss",
-        $order_code,
-        $table_id,
-        $customer_name,
-        $order_type,
-        $status_pos,
-        $total_amount,
-        $amount_received,
-        $change_amount,
-        $mop,
-        $placed_by,
-        $served_by,
-        $notes,
-        $created_at
-    );
+    // Check if orders table has reservation_id column
+    $check_reservation_column = $conn_pos->query("SHOW COLUMNS FROM orders LIKE 'reservation_id'");
+    $has_reservation_column = ($check_reservation_column && $check_reservation_column->num_rows > 0);
+    
+    if ($check_reservation_column) {
+        $check_reservation_column->free();
+    }
+    
+    if ($has_reservation_column) {
+        // INSERT with reservation_id
+        $sql_pos = "INSERT INTO orders 
+            (order_code, table_id, customer_name, order_type, status, total_amount, amount_received, change_amount, MOP, placed_by, served_by, notes, created_at, reservation_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_pos = $conn_pos->prepare($sql_pos);
+        $stmt_pos->bind_param(
+            "sisssddsssssss",
+            $order_code,
+            $table_id,
+            $customer_name,
+            $order_type,
+            $status_pos,
+            $total_amount,
+            $amount_received,
+            $change_amount,
+            $mop,
+            $placed_by,
+            $served_by,
+            $notes,
+            $created_at,
+            $reservation_id
+        );
+    } else {
+        // INSERT without reservation_id
+        $sql_pos = "INSERT INTO orders 
+            (order_code, table_id, customer_name, order_type, status, total_amount, amount_received, change_amount, MOP, placed_by, served_by, notes, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_pos = $conn_pos->prepare($sql_pos);
+        $stmt_pos->bind_param(
+            "sisssddssssss",
+            $order_code,
+            $table_id,
+            $customer_name,
+            $order_type,
+            $status_pos,
+            $total_amount,
+            $amount_received,
+            $change_amount,
+            $mop,
+            $placed_by,
+            $served_by,
+            $notes,
+            $created_at
+        );
+    }
     
     if (!$stmt_pos->execute()) {
         throw new Exception('POS insert error: ' . $stmt_pos->error);
@@ -272,42 +429,86 @@ try {
     $stmt_pos->close();
 
     // =======================
-    // Step 3: Insert into Billing with amount and change
+    // Step 3: Insert into Billing with reservation_id if applicable
     // =======================
     $invoice_number = $order_code;
     $invoice_date   = date("Y-m-d");
     $status_billing = "Paid";
-    $description    = "Order #{$order_code} for Table {$table_name} - {$order_type}";
+    
+    // Add hotel guest info to description if applicable
+    $description = "Order #{$order_code} for Table {$table_name} - {$order_type}";
+    if ($is_hotel_guest && !empty($room_number_display)) {
+        $description .= " (Hotel Guest - Room: {$room_number_display})";
+    }
+    
     $quantity       = 1;
     $unit_price     = $total_amount;
     $payment_date   = date("Y-m-d");
     $client_email   = $input_data['customer_email'] ?? $input_data['email'] ?? '';
     $client_contact = $input_data['customer_contact'] ?? $input_data['contact'] ?? $input_data['phone'] ?? '';
 
-    $sql_billing = "INSERT INTO billing_payments 
-        (client_name, client_email, client_contact, invoice_number, invoice_date, status, 
-         description, quantity, unit_price, total_amount, amount_received, change_amount, payment_date, MOP, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    // Check if billing_payments table has reservation_id column
+    $check_billing_reservation = $conn_billing->query("SHOW COLUMNS FROM billing_payments LIKE 'reservation_id'");
+    $billing_has_reservation = ($check_billing_reservation && $check_billing_reservation->num_rows > 0);
     
-    $stmt_billing = $conn_billing->prepare($sql_billing);
-    $stmt_billing->bind_param(
-        "ssssssssdddssss", 
-        $customer_name,
-        $client_email,
-        $client_contact,
-        $invoice_number,
-        $invoice_date,
-        $status_billing,
-        $description,
-        $quantity,
-        $unit_price,
-        $total_amount,
-        $amount_received,
-        $change_amount,
-        $payment_date,
-        $mop,
-        $created_at
-    );
+    if ($check_billing_reservation) {
+        $check_billing_reservation->free();
+    }
+    
+    if ($billing_has_reservation) {
+        // INSERT with reservation_id
+        $sql_billing = "INSERT INTO billing_payments 
+            (client_name, client_email, client_contact, invoice_number, invoice_date, status, 
+             description, quantity, unit_price, total_amount, amount_received, change_amount, payment_date, MOP, created_at, reservation_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_billing = $conn_billing->prepare($sql_billing);
+        $stmt_billing->bind_param(
+            "ssssssssdddsssss", 
+            $customer_name,
+            $client_email,
+            $client_contact,
+            $invoice_number,
+            $invoice_date,
+            $status_billing,
+            $description,
+            $quantity,
+            $unit_price,
+            $total_amount,
+            $amount_received,
+            $change_amount,
+            $payment_date,
+            $mop,
+            $created_at,
+            $reservation_id
+        );
+    } else {
+        // INSERT without reservation_id
+        $sql_billing = "INSERT INTO billing_payments 
+            (client_name, client_email, client_contact, invoice_number, invoice_date, status, 
+             description, quantity, unit_price, total_amount, amount_received, change_amount, payment_date, MOP, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_billing = $conn_billing->prepare($sql_billing);
+        $stmt_billing->bind_param(
+            "ssssssssdddssss", 
+            $customer_name,
+            $client_email,
+            $client_contact,
+            $invoice_number,
+            $invoice_date,
+            $status_billing,
+            $description,
+            $quantity,
+            $unit_price,
+            $total_amount,
+            $amount_received,
+            $change_amount,
+            $payment_date,
+            $mop,
+            $created_at
+        );
+    }
     
     if (!$stmt_billing->execute()) {
         throw new Exception('Billing insert error: ' . $stmt_billing->error);
@@ -316,58 +517,127 @@ try {
     $stmt_billing->close();
 
     // =======================
-    // Step 4: Insert into KOT
+    // Step 4: Insert into KOT with reservation_id if applicable
     // =======================
     $kot_status   = "Pending";
-
-    $sql_kot = "INSERT INTO kot_orders 
-        (order_id, table_number, item_name, quantity, special_instructions, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)";
     
-    $stmt_kot = $conn_kot->prepare($sql_kot);
+    // Check if kot_orders table has reservation_id column
+    $check_kot_reservation = $conn_kot->query("SHOW COLUMNS FROM kot_orders LIKE 'reservation_id'");
+    $kot_has_reservation = ($check_kot_reservation && $check_kot_reservation->num_rows > 0);
+    
+    if ($check_kot_reservation) {
+        $check_kot_reservation->free();
+    }
+    
+    if ($kot_has_reservation) {
+        // INSERT with reservation_id
+        $sql_kot = "INSERT INTO kot_orders 
+            (order_id, table_number, item_name, quantity, special_instructions, status, created_at, reservation_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_kot = $conn_kot->prepare($sql_kot);
+        
+        foreach ($order_items as $item) {
+            $item_name    = $item['name'] ?? $item['item_name'] ?? 'Unknown Item';
+            $kot_quantity = $item['quantity'] ?? $item['qty'] ?? 1;
+            $special_instructions = $item['special_instructions'] ?? $item['notes'] ?? $notes;
 
-    foreach ($order_items as $item) {
-        $item_name    = $item['name'] ?? $item['item_name'] ?? 'Unknown Item';
-        $kot_quantity = $item['quantity'] ?? $item['qty'] ?? 1;
-        $special_instructions = $item['special_instructions'] ?? $item['notes'] ?? $notes;
+            $stmt_kot->bind_param(
+                "isssssss",
+                $order_id,
+                $table_name,
+                $item_name,
+                $kot_quantity,
+                $special_instructions,
+                $kot_status,
+                $created_at,
+                $reservation_id
+            );
 
-        $stmt_kot->bind_param(
-            "issssss",
-            $order_id,
-            $table_name,
-            $item_name,
-            $kot_quantity,
-            $special_instructions,
-            $kot_status,
-            $created_at
-        );
+            if (!$stmt_kot->execute()) {
+                throw new Exception('KOT insert error: ' . $stmt_kot->error);
+            }
+        }
+    } else {
+        // INSERT without reservation_id
+        $sql_kot = "INSERT INTO kot_orders 
+            (order_id, table_number, item_name, quantity, special_instructions, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_kot = $conn_kot->prepare($sql_kot);
+        
+        foreach ($order_items as $item) {
+            $item_name    = $item['name'] ?? $item['item_name'] ?? 'Unknown Item';
+            $kot_quantity = $item['quantity'] ?? $item['qty'] ?? 1;
+            $special_instructions = $item['special_instructions'] ?? $item['notes'] ?? $notes;
 
-        if (!$stmt_kot->execute()) {
-            throw new Exception('KOT insert error: ' . $stmt_kot->error);
+            $stmt_kot->bind_param(
+                "issssss",
+                $order_id,
+                $table_name,
+                $item_name,
+                $kot_quantity,
+                $special_instructions,
+                $kot_status,
+                $created_at
+            );
+
+            if (!$stmt_kot->execute()) {
+                throw new Exception('KOT insert error: ' . $stmt_kot->error);
+            }
         }
     }
+    
     $stmt_kot->close();
 
     // =======================
-    // Step 5: Create review entry for the order
+    // Step 5: Create review entry for the order with reservation_id if applicable
     // =======================
     $review_status = "pending";
     $order_items_json = json_encode($order_items);
     
-    $sql_reviews = "INSERT INTO customer_reviews 
-        (order_code, customer_name, table_name, order_items, status, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?)";
+    // Check if customer_reviews table has reservation_id column
+    $check_reviews_reservation = $conn_reviews->query("SHOW COLUMNS FROM customer_reviews LIKE 'reservation_id'");
+    $reviews_has_reservation = ($check_reviews_reservation && $check_reviews_reservation->num_rows > 0);
     
-    $stmt_reviews = $conn_reviews->prepare($sql_reviews);
-    $stmt_reviews->bind_param(
-        "ssssss",
-        $order_code,
-        $customer_name,
-        $table_name,
-        $order_items_json,
-        $review_status,
-        $created_at
-    );
+    if ($check_reviews_reservation) {
+        $check_reviews_reservation->free();
+    }
+    
+    if ($reviews_has_reservation) {
+        // INSERT with reservation_id
+        $sql_reviews = "INSERT INTO customer_reviews 
+            (order_code, customer_name, table_name, order_items, status, created_at, reservation_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_reviews = $conn_reviews->prepare($sql_reviews);
+        $stmt_reviews->bind_param(
+            "sssssss",
+            $order_code,
+            $customer_name,
+            $table_name,
+            $order_items_json,
+            $review_status,
+            $created_at,
+            $reservation_id
+        );
+    } else {
+        // INSERT without reservation_id
+        $sql_reviews = "INSERT INTO customer_reviews 
+            (order_code, customer_name, table_name, order_items, status, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?)";
+        
+        $stmt_reviews = $conn_reviews->prepare($sql_reviews);
+        $stmt_reviews->bind_param(
+            "ssssss",
+            $order_code,
+            $customer_name,
+            $table_name,
+            $order_items_json,
+            $review_status,
+            $created_at
+        );
+    }
     
     if (!$stmt_reviews->execute()) {
         throw new Exception('Review entry creation error: ' . $stmt_reviews->error);
@@ -454,8 +724,16 @@ try {
     // Step 7: Insert Notification for POS Order (CN time)
     // =======================
     $notification_title   = "New Order Placed";
-    $notification_message = "Order #{$order_code} has been placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2) . 
-                           ($mop === 'cash' ? " (Cash: ₱" . number_format($amount_received, 2) . ", Change: ₱" . number_format($change_amount, 2) . ")" : "");
+    $notification_message = "Order #{$order_code} has been placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2);
+    
+    if ($is_hotel_guest && !empty($room_number_display)) {
+        $notification_message .= " (Hotel Guest - Room: {$room_number_display})";
+    }
+    
+    if ($mop === 'cash') {
+        $notification_message .= " (Cash: ₱" . number_format($amount_received, 2) . ", Change: ₱" . number_format($change_amount, 2) . ")";
+    }
+    
     $notification_status  = "Unread";
     $module               = "POS Order Management";
 
@@ -501,9 +779,17 @@ try {
     // =======================
     $modules_cover = "POS Order Management";
     $action        = "Order Placed";
-    $activity      = "Order #{$order_code} placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2) . 
-                     ($mop === 'cash' ? " (Cash: ₱" . number_format($amount_received, 2) . ", Change: ₱" . number_format($change_amount, 2) . ")" : "") . 
-                     " (Items: " . count($order_items) . ")";
+    $activity      = "Order #{$order_code} placed for Table {$table_name} by {$customer_name}. Total: ₱" . number_format($total_amount, 2);
+    
+    if ($is_hotel_guest && !empty($room_number_display)) {
+        $activity .= " (Hotel Guest - Room: {$room_number_display})";
+    }
+    
+    if ($mop === 'cash') {
+        $activity .= " (Cash: ₱" . number_format($amount_received, 2) . ", Change: ₱" . number_format($change_amount, 2) . ")";
+    }
+    
+    $activity .= " (Items: " . count($order_items) . ")";
     
     $auditDatePH   = new DateTime('now', new DateTimeZone('Asia/Manila'));
     $audit_date    = $auditDatePH->format('Y-m-d H:i:s');
@@ -536,7 +822,7 @@ try {
     }
 
     // =======================
-    // Step 9: Generate Receipt JPEG with QR Code
+    // Step 9: Generate Receipt JPEG with QR Code - INCLUDING ROOM INFO (just in receipt, not in DB)
     // =======================
     
     // Get current Manila time for receipt
@@ -548,6 +834,7 @@ try {
     // Create review URL with order code
     $review_url = $review_link . "?order_code=" . urlencode($order_code);
     
+    // Add hotel guest info to receipt data (just for display, not for DB storage)
     $receipt_data = [
         'restaurant_name' => 'SOLIERA HOTEL & RESTAURANT',
         'restaurant_address' => '123 Jorge City, Valenzuela, Philippines',
@@ -576,7 +863,11 @@ try {
         'thank_you_message' => 'Thank you for dining with us!',
         'review_url' => $review_url,
         'watermark_text' => 'SOLIERA HOTEL & RESTAURANT',
-        'background_image' => '../../images/receipt-bg.jpg'
+        'background_image' => '../../images/receipt-bg.jpg',
+        'is_hotel_guest' => $is_hotel_guest,
+        'room_number' => $room_number_display,
+        'reservation_id' => $reservation_id,
+        'hotel_guest_info' => $hotel_guest_info
     ];
 
     // Generate receipt JPEG with QR code
@@ -621,7 +912,10 @@ try {
         'auto_download' => true,
         'download_instructions' => 'The receipt JPEG with QR code has been generated and will auto-download.',
         'items_count' => count($order_items),
-        'current_time_manila' => $receipt_timestamp
+        'current_time_manila' => $receipt_timestamp,
+        'is_hotel_guest' => $is_hotel_guest,
+        'room_number' => $room_number_display,
+        'reservation_id' => $reservation_id
     ]);
 
 } catch (Exception $e) {
@@ -647,7 +941,7 @@ try {
 }
 
 // =======================
-// Function to generate receipt JPEG with QR Code
+// Function to generate receipt JPEG with QR Code - UPDATED TO INCLUDE ROOM INFO
 // =======================
 function generateReceiptJPEG($data) {
     // Check if GD library is available
@@ -656,9 +950,9 @@ function generateReceiptJPEG($data) {
         return '';
     }
     
-    // Create image dimensions - increased height for QR code
+    // Create image dimensions - increased height for hotel guest info
     $width = 500;
-    $height = 950; // Increased height for QR code
+    $height = 1000; // Increased height for hotel guest info
     $image = imagecreatetruecolor($width, $height);
     
     if (!$image) {
@@ -677,6 +971,7 @@ function generateReceiptJPEG($data) {
     $gold = imagecolorallocate($image, 255, 215, 0);
     $dark_red = imagecolorallocate($image, 178, 34, 34);
     $qr_color = imagecolorallocate($image, 0, 102, 204); // Blue color for QR
+    $hotel_color = imagecolorallocate($image, 75, 0, 130); // Purple color for hotel guest
     
     // Fill background with white
     imagefilledrectangle($image, 0, 0, $width, $height, $white);
@@ -728,6 +1023,23 @@ function generateReceiptJPEG($data) {
     addTextToImage($image, 180, $y, "ORDER RECEIPT", $black, 14, $font_path, $use_ttf);
     $y += 35;
     
+   // Hotel Guest Badge (if applicable)
+if ($data['is_hotel_guest'] && !empty($data['room_number'])) {
+    // Hotel guest banner
+    $hotel_banner_color = imagecolorallocate($image, 147, 112, 219); // Medium purple
+    $hotel_text_color = imagecolorallocate($image, 255, 255, 255); // White
+    
+    // Draw hotel guest banner - INCREASED HEIGHT FROM 25 TO 30
+    $banner_height = 30;
+    imagefilledrectangle($image, 50, $y, $width-50, $y+$banner_height, $hotel_banner_color);
+    imagerectangle($image, 50, $y, $width-50, $y+$banner_height, $black);
+    
+    // Hotel guest text - ADJUSTED VERTICAL POSITION
+    $hotel_text = "HOTEL GUEST - ROOM " . $data['room_number'];
+    addTextToImage($image, 100, $y+($banner_height/2)+3, $hotel_text, $hotel_text_color, 12, $font_path, $use_ttf);
+    $y += 55; // Increased from 40 to account for taller banner
+}
+    
     // Order Details
     addTextToImage($image, 30, $y, "Order #:", $black, 11, $font_path, $use_ttf);
     addTextToImage($image, 120, $y, $data['order_id'], $blue, 11, $font_path, $use_ttf);
@@ -747,6 +1059,13 @@ function generateReceiptJPEG($data) {
     
     addTextToImage($image, 30, $y, "Customer:", $black, 11, $font_path, $use_ttf);
     addTextToImage($image, 120, $y, $data['customer'], $black, 11, $font_path, $use_ttf);
+    
+    // Add room number next to customer name if hotel guest
+    if ($data['is_hotel_guest'] && !empty($data['room_number'])) {
+        $room_text = "(Room: " . $data['room_number'] . ")";
+        addTextToImage($image, 250, $y, $room_text, $hotel_color, 10, $font_path, $use_ttf);
+    }
+    
     $y += 35;
     
     // Items header
@@ -764,9 +1083,9 @@ function generateReceiptJPEG($data) {
     imageline($image, 20, $y, $width-20, $y, $gray);
     $y += 15;
     
-    // List items (max 8 to leave space for QR code)
+    // List items (max 7 to leave space for hotel info and QR code)
     $item_count = 0;
-    $max_items = 8;
+    $max_items = 7;
     foreach ($data['items'] as $item) {
         if ($item_count >= $max_items) {
             $remaining = count($data['items']) - $max_items;
@@ -837,7 +1156,7 @@ function generateReceiptJPEG($data) {
     $y += 35;
     
     // Payment details (only for cash)
-    if (isset($data['amount_received']) && $data['payment_method'] === 'CASH') {
+    if (isset($data['amount_received']) && strtoupper($data['payment_method']) === 'CASH') {
         addTextToImage($image, 30, $y, "Amount Received:", $black, 11, $font_path, $use_ttf);
         if ($use_ttf) {
             addTextToImage($image, 370, $y, '₱' . $data['amount_received'], $green, 11, $font_path, $use_ttf);
@@ -889,7 +1208,6 @@ function generateReceiptJPEG($data) {
     }
     
     // QR Code Instructions
-     // QR Code Instructions
     addTextToImage($image, 100, $y, "Scan to leave feedback & win rewards!", $qr_color, 11, $font_path, $use_ttf);
     $y += 40;
     
@@ -1045,7 +1363,7 @@ function addTextToImage($image, $x, $y, $text, $color, $size, $font_path = null,
 }
 
 // =======================
-// Function to generate receipt HTML (for preview)
+// Function to generate receipt HTML (for preview) - UPDATED TO INCLUDE ROOM INFO
 // =======================
 function generateReceiptHTML($data) {
     ob_start();
@@ -1099,6 +1417,16 @@ function generateReceiptHTML($data) {
             }
             .info-label { 
                 font-weight: bold; 
+            }
+            .hotel-guest-banner {
+                background: #9370db;
+                color: white;
+                text-align: center;
+                padding: 8px;
+                margin: 10px 0;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 13px;
             }
             .items-table { 
                 width: 100%; 
@@ -1216,6 +1544,15 @@ function generateReceiptHTML($data) {
                 border-radius: 3px;
                 margin: 5px 0;
             }
+            .hotel-room-badge {
+                display: inline-block;
+                background: #9370db;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                margin-left: 5px;
+            }
         </style>
     </head>
     <body>
@@ -1230,6 +1567,12 @@ function generateReceiptHTML($data) {
                 <div class="restaurant-details"><?php echo htmlspecialchars($data['restaurant_contact']); ?></div>
                 <div class="timezone-note">(Manila/Beijing Time UTC+8)</div>
             </div>
+            
+            <?php if ($data['is_hotel_guest'] && !empty($data['room_number'])): ?>
+            <div class="hotel-guest-banner">
+                HOTEL GUEST - ROOM <?php echo htmlspecialchars($data['room_number']); ?>
+            </div>
+            <?php endif; ?>
             
             <div class="order-info">
                 <div class="info-row">
@@ -1254,7 +1597,12 @@ function generateReceiptHTML($data) {
                 </div>
                 <div class="info-row">
                     <span class="info-label">Customer:</span>
-                    <span><?php echo htmlspecialchars($data['customer']); ?></span>
+                    <span>
+                        <?php echo htmlspecialchars($data['customer']); ?>
+                        <?php if ($data['is_hotel_guest'] && !empty($data['room_number'])): ?>
+                            <span class="hotel-room-badge">Room <?php echo htmlspecialchars($data['room_number']); ?></span>
+                        <?php endif; ?>
+                    </span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Placed By:</span>
@@ -1304,7 +1652,7 @@ function generateReceiptHTML($data) {
                 </div>
             </div>
             
-            <?php if ($data['payment_method'] === 'CASH'): ?>
+            <?php if (strtoupper($data['payment_method']) === 'CASH'): ?>
             <div class="payment-details">
                 <div class="info-row">
                     <span class="info-label">Amount Received:</span>

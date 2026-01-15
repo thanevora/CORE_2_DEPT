@@ -2,6 +2,57 @@
 session_start();
 include("../main_connection.php");
 
+// ============================================
+// ROOM SEARCH API INTEGRATION
+// ============================================
+$token = "uX8B1QqYJt7XqTf0sM3tKAh5nCjEjR1Xlqk4F8ZdD1mHq5V9y7oUj1QhUzPg5s";
+$hotel_guest = null;
+$is_checked_in = false;
+$hotel_guest_name = '';
+
+// Handle hotel guest search
+if (isset($_GET['search_room']) && !empty($_GET['search_room'])) {
+    $room_number = $_GET['search_room'];
+    $url = "https://hotel.soliera-hotel-restaurant.com/api/bookedrooms";
+    
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer $token",
+            "Accept: application/json",
+            "Content-Type: application/json"
+        ]
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode == 200) {
+        $data = json_decode($response, true);
+        if (isset($data['success']) && $data['success'] === true && isset($data['data'])) {
+            foreach ($data['data'] as $reservation) {
+                // Check if roomID matches (assuming roomID is the room number)
+                if (isset($reservation['roomID']) && $reservation['roomID'] == $room_number) {
+                    $hotel_guest = $reservation;
+                    // Check if guest is checked in
+                    if (isset($reservation['reservation_bookingstatus']) && 
+                        strtolower($reservation['reservation_bookingstatus']) == 'checked in') {
+                        $is_checked_in = true;
+                    }
+                    // Get guest name for auto-fill
+                    if (isset($reservation['guestname'])) {
+                        $hotel_guest_name = $reservation['guestname'];
+                    }
+                    break;
+                }
+            }
+        }
+    } else {
+        error_log("Hotel API Error: HTTP Code $httpCode");
+    }
+}
+
 // Database connection
 $db_name = "rest_m3_menu";
 if (!isset($connections[$db_name])) {
@@ -207,6 +258,23 @@ $categories_json = json_encode($categories);
             border-color: #EF4444;
             background-color: #fef2f2;
         }
+        /* Room status badges */
+        .room-occupied {
+            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+            color: white;
+        }
+        .room-vacant {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+        }
+        .room-reserved {
+            background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+            color: white;
+        }
+        .room-maintenance {
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+            color: white;
+        }
     </style>
 </head>
 <body class="bg-base-100 min-h-screen bg-white">
@@ -221,76 +289,169 @@ $categories_json = json_encode($categories);
 
         <!-- Main Content -->
         <main class="flex-1 overflow-auto p-4 md:p-6">
-            <!-- Search and Filter Section -->
-            <div class="mb-6">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-                    <!-- Search Bar -->
-                    <div class="flex-1">
-                        <div class="relative">
-                            <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"></i>
-                            <input type="text" 
-                                   id="searchInput" 
-                                   placeholder="Search menu items..." 
-                                   class="bg-white w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] focus:border-transparent">
+           <!-- Compact Room Status Check -->
+<div class="mb-4 bg-white rounded-lg shadow-sm p-3 border border-gray-200">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+        <!-- Search Input -->
+        <div class="flex-1 min-w-0">
+            <div class="relative">
+                <i data-lucide="home" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                <input type="text" 
+                       id="roomSearchInput" 
+                       placeholder="Room # (e.g., 40, 28)" 
+                       class="bg-white w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] focus:border-transparent"
+                       maxlength="10"
+                       value="<?php echo isset($_GET['search_room']) ? htmlspecialchars($_GET['search_room']) : ''; ?>">
+            </div>
+        </div>
+        
+        <!-- Search Button -->
+        <button id="searchRoomBtn" class="primary-button px-4 py-2 text-sm rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-[#e6a117] transition duration-200 whitespace-nowrap shrink-0">
+            <i data-lucide="search" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Check Room</span>
+            <span class="sm:hidden">Search</span>
+        </button>
+    </div>
+    
+    <!-- Room Details Display -->
+    <div id="roomDetails" class="mt-3 <?php echo $hotel_guest ? '' : 'hidden'; ?>">
+        <?php if ($hotel_guest): ?>
+            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800">Room <?php echo htmlspecialchars($hotel_guest['roomID']); ?></h3>
+                        <p class="text-sm text-gray-600"><?php echo htmlspecialchars($hotel_guest['roomtype'] ?? 'Standard'); ?> Room</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <?php if ($is_checked_in): ?>
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                            <span class="room-occupied text-xs font-medium px-3 py-1 rounded-full">Checked In</span>
+                        <?php else: ?>
+                            <i data-lucide="calendar" class="w-5 h-5"></i>
+                            <span class="room-reserved text-xs font-medium px-3 py-1 rounded-full">Reserved</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="font-medium text-gray-700 mb-2">Guest Information</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="user" class="w-4 h-4 text-gray-500"></i>
+                                <span class="text-sm text-gray-800"><?php echo htmlspecialchars($hotel_guest['guestname']); ?></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="phone" class="w-4 h-4 text-gray-500"></i>
+                                <span class="text-sm text-gray-800"><?php echo htmlspecialchars($hotel_guest['guestphonenumber']); ?></span>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Filter Dropdowns -->
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <!-- Category Filter -->
-                        <div class="relative">
-                            <select id="categoryFilter" class="w-full sm:w-48 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white">
-                                <option value="all">All Categories</option>
-                                <?php foreach ($categories as $category): ?>
-                                    <option value="<?php echo htmlspecialchars(strtolower($category)); ?>">
-                                        <?php echo htmlspecialchars($category); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <i data-lucide="chevron-down" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none"></i>
-                        </div>
-                        
-                        <!-- Price Sort -->
-                        <div class="relative">
-                            <select id="priceSort" class="w-full sm:w-48 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white">
-                                <option value="default">Sort by Price</option>
-                                <option value="low-high">Price: Low to High</option>
-                                <option value="high-low">Price: High to Low</option>
-                            </select>
-                            <i data-lucide="filter" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none"></i>
+                    <div>
+                        <h4 class="font-medium text-gray-700 mb-2">Booking Details</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="calendar" class="w-4 h-4 text-gray-500"></i>
+                                <span class="text-sm text-gray-800">Check-in: <?php echo htmlspecialchars($hotel_guest['reservation_checkin']); ?></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="calendar" class="w-4 h-4 text-gray-500"></i>
+                                <span class="text-sm text-gray-800">Check-out: <?php echo htmlspecialchars($hotel_guest['reservation_checkout']); ?></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="hash" class="w-4 h-4 text-gray-500"></i>
+                                <span class="text-sm text-gray-800">Booking Ref: <?php echo htmlspecialchars($hotel_guest['bookingID']); ?></span>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Active Filters Display -->
-                <div id="activeFilters" class="flex flex-wrap gap-2 hidden">
-                    <!-- Active filters will appear here -->
+                <div class="mt-4 flex justify-end">
+                    <button onclick="clearRoomSearch()" class="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                        Clear Search
+                    </button>
                 </div>
             </div>
+        <?php endif; ?>
+    </div>
+</div>
 
-            <!-- Customer Info & Table Selection -->
-            <div class="bg-white rounded-lg shadow-md p-4 mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                        <input type="text" id="customerName" class="bg-white w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F7B32B]" placeholder="Enter customer name">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Table</label>
-                        <button id="tableSelectBtn" class="w-full px-3 py-2 border border-gray-300 rounded-md text-left flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-[#F7B32B] hover:bg-gray-50 transition duration-200">
-                            <span id="selectedTableText">Select Table</span>
-                            <div class="flex items-center gap-2">
-                                <span id="tableStatusBadge" class="hidden text-xs font-medium px-2 py-1 rounded-full"></span>
-                                <i data-lucide="chevron-down"></i>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Order Notes (Optional)</label>
-                    <textarea id="orderNotes" class="bg-white w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F7B32B]" placeholder="Special instructions or notes..." rows="2"></textarea>
-                </div>
+<!-- Main Search and Filter Section -->
+<div class="mb-6">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+        <!-- Menu Search Bar -->
+        <div class="flex-1 min-w-0">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                <input type="text" 
+                       id="searchInput" 
+                       placeholder="Search menu items..." 
+                       class="bg-white w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] focus:border-transparent text-sm sm:text-base">
             </div>
+        </div>
+        
+        <!-- Filter Dropdowns -->
+        <div class="flex flex-col xs:flex-row gap-2 sm:gap-3">
+            <!-- Category Filter -->
+            <div class="relative flex-1 xs:flex-none">
+                <select id="categoryFilter" class="w-full xs:w-40 sm:w-48 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white text-sm sm:text-base">
+                    <option value="all">All Categories</option>
+                    <?php foreach ($categories as $category): ?>
+                        <option value="<?php echo htmlspecialchars(strtolower($category)); ?>">
+                            <?php echo htmlspecialchars($category); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <i data-lucide="chevron-down" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"></i>
+            </div>
+            
+            <!-- Price Sort -->
+            <div class="relative flex-1 xs:flex-none">
+                <select id="priceSort" class="w-full xs:w-40 sm:w-48 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white text-sm sm:text-base">
+                    <option value="default">Sort by Price</option>
+                    <option value="low-high">Price: Low to High</option>
+                    <option value="high-low">Price: High to Low</option>
+                </select>
+                <i data-lucide="filter" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"></i>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Filters Display -->
+    <div id="activeFilters" class="flex flex-wrap gap-2 hidden">
+        <!-- Active filters will appear here -->
+    </div>
+</div>
+
+<!-- Customer Info & Table Selection -->
+<div class="bg-white rounded-lg shadow-md p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+            <input type="text" 
+                   id="customerName" 
+                   class="bg-white w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F7B32B] text-sm sm:text-base" 
+                   placeholder="Enter customer name"
+                   value="<?php echo htmlspecialchars($hotel_guest_name); ?>">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Table</label>
+            <button id="tableSelectBtn" class="w-full px-3 py-2 border border-gray-300 rounded-md text-left flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-[#F7B32B] hover:bg-gray-50 transition duration-200 text-sm sm:text-base">
+                <span id="selectedTableText">Select Table</span>
+                <div class="flex items-center gap-2">
+                    <span id="tableStatusBadge" class="hidden text-xs font-medium px-2 py-1 rounded-full"></span>
+                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                </div>
+            </button>
+        </div>
+    </div>
+    <div class="mt-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Order Notes (Optional)</label>
+        <textarea id="orderNotes" class="bg-white w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F7B32B] text-sm sm:text-base" placeholder="Special instructions or notes..." rows="2"></textarea>
+    </div>
+</div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Order Section -->
@@ -701,6 +862,109 @@ $categories_json = json_encode($categories);
             </div>
         </div>
     </div>
+
+    <!-- Online Payment Modal (for GCash & Maya) -->
+<div id="onlinePaymentModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] hidden">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+        <div class="p-6">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800" id="onlinePaymentModalTitle">Online Payment</h3>
+                <button id="closeOnlinePaymentModal" class="text-gray-500 hover:text-gray-700">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <!-- Payment Method Display -->
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg">
+                <div class="flex items-center gap-3">
+                    <div id="paymentMethodIcon" class="w-12 h-12 flex items-center justify-center rounded-lg">
+                        <!-- Icon will be set dynamically -->
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-800" id="paymentMethodName">GCash</h4>
+                        <p class="text-sm text-gray-600">Please enter customer's phone number to complete payment</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Phone Number Form -->
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <!-- Country Code Dropdown -->
+                        <div class="relative w-32">
+                            <select id="countryCode" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] appearance-none bg-white text-sm">
+                                <option value="+63">🇵🇭 +63 (Philippines)</option>
+                                <option value="+1">🇺🇸 +1 (USA)</option>
+                                <option value="+44">🇬🇧 +44 (UK)</option>
+                                <option value="+65">🇸🇬 +65 (Singapore)</option>
+                                <option value="+60">🇲🇾 +60 (Malaysia)</option>
+                                <option value="+61">🇦🇺 +61 (Australia)</option>
+                                <option value="+81">🇯🇵 +81 (Japan)</option>
+                                <option value="+82">🇰🇷 +82 (Korea)</option>
+                                <option value="+86">🇨🇳 +86 (China)</option>
+                                <option value="+91">🇮🇳 +91 (India)</option>
+                                <option value="+971">🇦🇪 +971 (UAE)</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"></i>
+                        </div>
+                        
+                        <!-- Phone Number Input -->
+                        <div class="flex-1">
+                            <input type="tel" 
+                                   id="phoneNumber" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F7B32B] text-sm"
+                                   placeholder="e.g., 9123456789"
+                                   maxlength="20"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Enter the customer's mobile number for payment confirmation</p>
+                </div>
+                
+                <!-- Amount Display -->
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Payment Amount:</span>
+                        <span id="onlinePaymentAmount" class="text-xl font-bold text-green-600">₱0.00</span>
+                    </div>
+                </div>
+                
+                <!-- Validation Messages -->
+                <div id="phoneValidation" class="hidden">
+                    <div id="phoneValidMessage" class="hidden p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                            <span>Phone number is valid</span>
+                        </div>
+                    </div>
+                    <div id="phoneInvalidMessage" class="hidden p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                            <span id="phoneErrorText">Please enter a valid phone number</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex gap-3 mt-8">
+                <button id="cancelOnlinePayment" class="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200 font-medium">
+                    Cancel
+                </button>
+                <button id="confirmOnlinePayment" class="flex-1 px-4 py-3 bg-[#F7B32B] text-white rounded-lg hover:bg-[#e6a117] transition duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    Complete Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     // Initialize Lucide icons
     lucide.createIcons();
@@ -816,6 +1080,13 @@ $categories_json = json_encode($categories);
     const tableTotalItemsElement = document.getElementById('tableTotalItems');
 
     // ============================================
+    // ROOM SEARCH ELEMENTS
+    // ============================================
+    const roomSearchInput = document.getElementById('roomSearchInput');
+    const searchRoomBtn = document.getElementById('searchRoomBtn');
+    const roomDetails = document.getElementById('roomDetails');
+
+    // ============================================
     // AMOUNT & CHANGE CALCULATION FUNCTIONS
     // ============================================
     function calculateChange() {
@@ -855,6 +1126,35 @@ $categories_json = json_encode($categories);
         }
         
         return changeAmount;
+    }
+
+    // ============================================
+    // ROOM SEARCH FUNCTIONS
+    // ============================================
+    async function searchRoom() {
+        const roomId = roomSearchInput.value.trim();
+        
+        if (!roomId) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Room Number Required',
+                text: 'Please enter a room number to search.',
+                background: 'white',
+                color: '#333'
+            });
+            return;
+        }
+        
+        // Redirect with search parameter for server-side processing
+        const url = new URL(window.location.href);
+        url.searchParams.set('search_room', roomId);
+        window.location.href = url.toString();
+    }
+
+    function clearRoomSearch() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('search_room');
+        window.location.href = url.toString();
     }
 
     // ============================================
@@ -978,6 +1278,25 @@ $categories_json = json_encode($categories);
 
     // Set up event listeners
     function setupEventListeners() {
+        // ============================================
+        // ROOM SEARCH EVENT LISTENERS
+        // ============================================
+        searchRoomBtn.addEventListener('click', searchRoom);
+        
+        roomSearchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchRoom();
+            }
+        });
+        
+        roomSearchInput.addEventListener('input', (e) => {
+            // Allow only numbers and limit length
+            roomSearchInput.value = roomSearchInput.value.replace(/\D/g, '').slice(0, 10);
+        });
+
+        // ============================================
+        // EXISTING EVENT LISTENERS
+        // ============================================
         // Search input
         searchInput.addEventListener('input', (e) => {
             currentSearch = e.target.value.toLowerCase();
